@@ -1,0 +1,9 @@
+{
+  "title": "Annual Portfolio Rebalancing Disciplines",
+  "category": "investments",
+  "topic": "Portfolio Rebalancing",
+  "source": "Asset Management Best Practices",
+  "date": "2026-08-01",
+  "reference": "Portfolio Risk Control",
+  "content": "Portfolio rebalancing involves systematically resetting asset class weights (Equity, Debt, Gold) back to target allocations annually or when an asset class drifts by > 5%. Rebalancing enforces the core investing discipline of 'selling high' (trimming outperforming asset classes) and 'buying low' (allocating into underperforming asset classes), dampening overall portfolio volatility."
+}

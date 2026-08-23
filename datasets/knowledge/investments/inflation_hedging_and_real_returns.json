@@ -1,0 +1,9 @@
+{
+  "title": "Inflation Rate & Real Rate of Return Calculations",
+  "category": "investments",
+  "topic": "Real Returns & Inflation",
+  "source": "Economic & Financial Analytics",
+  "date": "2026-08-01",
+  "reference": "Purchasing Power Preservation",
+  "content": "Nominal returns must be adjusted for inflation and taxes to measure true purchasing power growth: Real Return % \u2248 ((1 + Nominal Return %) / (1 + Inflation Rate %)) - 1 - Tax Drag. For example, a 7% bank deposit with 6% inflation and 30% tax slab yields a NEGATIVE real rate of return (-1.1%), highlighting why long-term wealth requires equity index asset allocation."
+}

@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "question": "What is Section 80C?",
+    "answer": "Section 80C of the Income Tax Act 1961 allows taxpayers to claim deductions up to ₹1,50,000 per financial year from their gross total income for specified financial expenses. Eligible expenses include: Employee Provident Fund (EPF), Life Insurance Premiums (including ULIPs), Public Provident Fund (PPF), Equity Linked Savings Schemes (ELSS mutual funds), National Savings Certificate (NSC), Sukanya Samriddhi Yojana, and HRA and House Rent Deductions. Note that eligibility criteria and maximum limits may vary based on individual circumstances and official updates."
+  },
+  {
+    "id": 2,
+    "question": "Explain the difference between the old and new tax regimes.",
+    "answer": "Under the Old Tax Regime (Section 115BAC), income is taxed at slab rates based on the total income bracket: 0% for income up to ₹2,50,000; 10% on income between ₹2,50,001 and ₹5,00,000; 20% on income between ₹5,00,001 and ₹7,50,000; and 30% on income above ₹7,50,000. Under the New Tax Regime (Section 194A), income is taxed at flat rates: 0% for income up to ₹7,00"
+  },
+  {
+    "id": 3,
+    "question": "What is GST input tax credit?",
+    "answer": "According to the official Tax Regimes of Government of India (Section 17(2A)): Input Tax Credit (ITC) allows registered manufacturers and suppliers who pay tax on raw materials or capital goods to deduct the tax paid from the tax payable on their output supplies. This effectively reduces the overall tax burden. It is subject to compliance with eligibility criteria and proper documentation."
+  },
+  {
+    "id": 4,
+    "question": "What is a fixed deposit?",
+    "answer": "Fixed deposits (FDs) are bank or NBFC savings instruments that allow depositors to park their surplus cash for fixed terms ranging from 7 days to 10 years. FDs offer higher interest rates than savings accounts but come with the risk of losing principal if withdrawn before maturity. Interest earned on FDs is taxable under the 'Income from Other Sources' category."
+  },
+  {
+    "id": 5,
+    "question": "What should I consider before making an investment?",
+    "answer": "Before making any investment decision, it is advisable to consult official tax literature or seek guidance from a financial advisor. Key points include: Investment risk tolerance, investment horizon, capital appreciation potential, dividend yield, liquidity requirements, tax implications, regulatory framework, and inflation-adjusted returns."
+  }
+]

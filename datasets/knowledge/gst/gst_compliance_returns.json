@@ -1,0 +1,9 @@
+{
+  "title": "GST Compliance Filings and Return Types",
+  "category": "gst",
+  "topic": "GST Compliance",
+  "source": "GSTN / CBIC, Government of India",
+  "date": "2024-04-01",
+  "reference": "GST Return Framework",
+  "content": "Registered regular GST taxpayers must file periodic returns: GSTR-1 is a monthly or quarterly return disclosing details of outward supplies (sales invoices). GSTR-3B is a monthly summary return for declaring tax liability, claiming Input Tax Credit (ITC), and depositing tax payable. GSTR-2B is an auto-drafted read-only statement generated on the 14th of every month indicating eligible and ineligible Input Tax Credit based on suppliers' GSTR-1 filings. GSTR-9 is the Annual Return filed by regular taxpayers. Composition taxpayers file CMP-08 quarterly and GSTR-4 annually."
+}
