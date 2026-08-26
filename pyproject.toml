@@ -1,2 +1,11 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audit-v"
+version = "1.0.0"
+description = "Audit V Financial & Tax Intelligence Platform"
+
 [tool.vercel]
-entrypoint = "backend.app.main:app"
+entrypoint = "api/index.py"
