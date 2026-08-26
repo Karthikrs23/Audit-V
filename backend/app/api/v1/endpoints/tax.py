@@ -13,9 +13,9 @@ router = APIRouter(prefix="/tax", tags=["Tax Compliance"])
     status_code=status.HTTP_200_OK,
     summary="Calculate Indian Income Tax & Compare Regimes",
     description=(
-        "Deterministic calculation engine for Indian Income Tax under New (Section 115BAC) "
-        "and Old Tax Regimes for Tax Year 2026-27. Computes taxable income, slab tax, "
-        "Section 87A rebate, surcharge, and 4% Cess."
+        "Deterministic calculation engine for Indian Income Tax under New (Section 115BAC, Income Tax Act 1961 — "
+        "recodified as Section 202 under Income Tax Act 2025) and Old Tax Regimes for Tax Year 2026-27. "
+        "Computes taxable income, slab tax, Section 87A (recodified as Section 157) rebate, surcharge, and 4% Cess."
     ),
 )
 def calculate_tax(request: TaxCalculationRequest) -> TaxCalculationResponse:

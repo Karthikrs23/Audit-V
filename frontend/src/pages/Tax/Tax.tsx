@@ -21,18 +21,18 @@ interface TaxSection {
 
 const TAX_SECTIONS: TaxSection[] = [
   {
-    code: "Section 80C",
-    title: "EPF, PPF, ELSS, Life Insurance & Home Loan Principal",
+    code: "Section 80C / Sec 123",
+    title: "Tax-Saving Deductions (EPF, PPF, ELSS, Housing Loan)",
     limit: "₹1,50,000",
     category: "Old Regime",
-    description: "Deductions for eligible long-term savings and investments under Old Tax Regime.",
+    description: "Eligible investments under Sec 80C (recodified as Sec 123 under IT Act 2025) include EPF, PPF, ELSS, FDs, tuition fees, and home loan principal.",
   },
   {
-    code: "Section 80D",
-    title: "Health Insurance Premiums & Medical Expenses",
-    limit: "₹25,000 / ₹50,000",
+    code: "Section 80D / Sec 126",
+    title: "Health Insurance Premium Deduction",
+    limit: "Up to ₹1,00,000",
     category: "Old Regime",
-    description: "Medical insurance premiums for self, family (₹25k) and senior citizen parents (₹50k).",
+    description: "Medical insurance premiums for self, family (₹25k) and senior citizen parents (₹50k) under Sec 80D (recodified as Sec 126).",
   },
   {
     code: "Section 80CCD(1B)",
@@ -42,11 +42,11 @@ const TAX_SECTIONS: TaxSection[] = [
     description: "Additional tax deduction exclusively for contributions to NPS Tier-I accounts.",
   },
   {
-    code: "Section 115BAC",
+    code: "Section 115BAC / Sec 202",
     title: "New Tax Regime Concessional Rate Slabs",
     limit: "Standard ₹75,000",
     category: "New Regime",
-    description: "Default tax regime with lower slab rates and ₹12,00,000 Section 87A full rebate limit (Tax Year 2026-27).",
+    description: "Default tax regime with lower slab rates and ₹12,00,000 Section 87A / Sec 157 full rebate limit (Tax Year 2026-27).",
   },
   {
     code: "Section 194C",

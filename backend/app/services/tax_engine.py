@@ -182,7 +182,7 @@ def calculate_new_regime(
 
     return TaxCalculationResult(
         financial_year=TaxRulesConfig.FINANCIAL_YEAR,
-        regime="New Tax Regime (Section 115BAC)",
+        regime="New Tax Regime (Section 115BAC, Income Tax Act 1961 — recodified as Section 202 under Income Tax Act 2025)",
         gross_income=_quantize_currency(gross_income),
         standard_deduction=_quantize_currency(std_deduction),
         eligible_deductions=Decimal("0"),
@@ -297,7 +297,7 @@ def compute_tax(request: TaxCalculationRequest) -> TaxCalculationResponse:
             selected_res = new_res if new_res.total_tax <= old_res.total_tax else old_res
 
         recommended = (
-            "New Tax Regime (Section 115BAC)"
+            "New Tax Regime (Section 115BAC, Income Tax Act 1961 — recodified as Section 202 under Income Tax Act 2025)"
             if new_res.total_tax <= old_res.total_tax
             else "Old Tax Regime"
         )

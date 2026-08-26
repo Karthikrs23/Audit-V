@@ -287,8 +287,10 @@ class LLMService:
 
         system_prompt = (
             "You are Audit V, an AI financial, tax, and compliance assistant. "
-            "Provide accurate, professional, educational explanations grounded in official Indian tax law, "
-            "GST rules, and financial best practices. "
+            "Provide accurate, professional, educational explanations grounded in official Indian tax law "
+            "(Income Tax Act 1961 & Income Tax Act 2025, in force April 1, 2026), GST rules, and financial best practices. "
+            "When citing sections, state the primary 1961 Act section alongside its 2025 Act recodified equivalent "
+            "(e.g., Section 115BAC / Section 202, Section 80C / Section 123, Section 80D / Section 126, Section 87A / Section 157, Section 10(13A) / Schedule III). "
             "CRITICAL COMPLIANCE DIRECTIVE FOR INVESTMENTS: Never recommend specific stock tickers, "
             "specific mutual fund scheme names, or buy/sell/hold timing calls. "
             "Only discuss broad asset classes (equity index funds, debt/fixed income, gold), instrument types (ELSS, PPF, NPS, FDs), "
@@ -382,8 +384,10 @@ class LLMService:
 
         system_prompt = (
             "You are Audit V, an AI financial, tax, and compliance assistant. "
-            "Provide accurate, professional, educational explanations grounded in official Indian tax law, "
-            "GST rules, and financial best practices. "
+            "Provide accurate, professional, educational explanations grounded in official Indian tax law "
+            "(Income Tax Act 1961 & Income Tax Act 2025, in force April 1, 2026), GST rules, and financial best practices. "
+            "When citing sections, state the primary 1961 Act section alongside its 2025 Act recodified equivalent "
+            "(e.g., Section 115BAC / Section 202, Section 80C / Section 123, Section 80D / Section 126, Section 87A / Section 157, Section 10(13A) / Schedule III). "
             "CRITICAL COMPLIANCE DIRECTIVE FOR INVESTMENTS: Never recommend specific stock tickers, "
             "specific mutual fund scheme names, or buy/sell/hold timing calls. "
             "Only discuss broad asset classes (equity index funds, debt/fixed income, gold), instrument types (ELSS, PPF, NPS, FDs), "
@@ -503,8 +507,8 @@ class LLMService:
 
             explanation += (
                 "**Key Tax Rules Applied**:\n"
-                "Under the New Tax Regime (Section 115BAC) for Tax Year 2026-27, a standard deduction of ₹75,000 is applied, and taxable income up to ₹12,00,000 receives a Section 87A rebate of up to ₹60,000 (zero tax). "
-                "Under the Old Tax Regime, standard deduction is ₹50,000 and deductions under Section 80C (up to ₹1.5L), Section 80D (health insurance), and HRA are claimed."
+                "Under the New Tax Regime (Section 115BAC, Income Tax Act 1961 — recodified as Section 202 under Income Tax Act 2025) for Tax Year 2026-27, a standard deduction of ₹75,000 is applied, and taxable income up to ₹12,00,000 receives a Section 87A (recodified as Section 157) rebate of up to ₹60,000 (zero tax). "
+                "Under the Old Tax Regime, standard deduction is ₹50,000 and deductions under Section 80C (recodified as Section 123, up to ₹1.5L), Section 80D (recodified as Section 126, health insurance), and Section 10(13A) HRA (Schedule III) are claimed."
             )
             return explanation
 

@@ -228,14 +228,14 @@ export default function SalaryPlanner() {
                 className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-2.5 text-sm text-white focus:border-cyan-400 outline-none"
               >
                 <option value="compare">Compare Regimes (Auto Best)</option>
-                <option value="new">New Tax Regime (Section 115BAC)</option>
+                <option value="new">New Tax Regime (Section 115BAC / Sec 202)</option>
                 <option value="old">Old Tax Regime</option>
               </select>
             </div>
 
             {/* Deductions Inputs (Section 80C, 80D, 80CCD, HRA, Other) */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-300">Section 80C (Max ₹1.5L)</label>
+              <label className="text-xs font-medium text-slate-300">Section 80C / Sec 123 (Max ₹1.5L)</label>
               <input
                 type="number"
                 value={sec80c}

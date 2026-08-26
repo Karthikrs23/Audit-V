@@ -249,7 +249,7 @@ def test_regime_comparison_pipeline():
 
     assert resp.old_regime_result is not None
     assert resp.new_regime_result is not None
-    assert resp.recommended_regime in ["New Tax Regime (Section 115BAC)", "Old Tax Regime"]
+    assert resp.recommended_regime.startswith("New Tax Regime") or resp.recommended_regime.startswith("Old Tax Regime")
     assert resp.potential_tax_savings >= Decimal("0")
 
 

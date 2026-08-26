@@ -55,10 +55,10 @@ def test_llm_service_tax_calculation_explanation():
     """Verify LLMService combines Tax Engine output with explanation."""
     llm_service = LLMService()
     calc_result = {
-        "recommended_regime": "New Tax Regime (Section 115BAC)",
+        "recommended_regime": "New Tax Regime (Section 115BAC, Income Tax Act 1961 — recodified as Section 202 under Income Tax Act 2025)",
         "potential_tax_savings": "15000",
         "selected_result": {
-            "regime": "New Tax Regime (Section 115BAC)",
+            "regime": "New Tax Regime (Section 115BAC, Income Tax Act 1961 — recodified as Section 202 under Income Tax Act 2025)",
             "gross_income": "1200000",
             "total_tax": "90000",
             "monthly_tax_estimate": "7500",

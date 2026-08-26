@@ -100,7 +100,7 @@ def generate_investment_guidance(req: InvestmentGuidanceRequest) -> InvestmentGu
     eligible_instruments: List[TaxSavingInstrumentInfo] = [
         TaxSavingInstrumentInfo(
             name="Equity Linked Savings Scheme (ELSS) Mutual Funds",
-            section="Section 80C",
+            section="Section 80C (recodified as Section 123 under Income Tax Act 2025)",
             lock_in_period="3 Years (Shortest among Section 80C options)",
             tax_treatment="Long Term Capital Gains (LTCG) above ₹1.25 Lakh taxed at 12.5%. Dividends taxed at slab rate.",
             risk_level="High (Market-linked equity portfolio)",
@@ -113,7 +113,7 @@ def generate_investment_guidance(req: InvestmentGuidanceRequest) -> InvestmentGu
         ),
         TaxSavingInstrumentInfo(
             name="Public Provident Fund (PPF)",
-            section="Section 80C",
+            section="Section 80C (recodified as Section 123 under Income Tax Act 2025)",
             lock_in_period="15 Years (Partial withdrawals permitted from Year 7 onwards)",
             tax_treatment="Exempt-Exempt-Exempt (EEE) status — Contribution, interest earned, and maturity proceeds are 100% tax-free.",
             risk_level="Very Low (Sovereign guarantee backed by Govt of India)",
@@ -126,7 +126,7 @@ def generate_investment_guidance(req: InvestmentGuidanceRequest) -> InvestmentGu
         ),
         TaxSavingInstrumentInfo(
             name="National Pension System (NPS)",
-            section="Section 80C & Section 80CCD(1B)",
+            section="Section 80C (recodified as Section 123) & Section 80CCD(1B)",
             lock_in_period="Till Age 60 (Mandatory 60% lump sum + 40% annuity purchase)",
             tax_treatment="60% lump sum at age 60 is 100% tax-free. 40% annuity payout taxable at slab rate. Extra ₹50k deduction under 80CCD(1B).",
             risk_level="Moderate to Low (Configurable asset mix across Equity, Corporate Debt, Govt Bonds)",
@@ -139,7 +139,7 @@ def generate_investment_guidance(req: InvestmentGuidanceRequest) -> InvestmentGu
         ),
         TaxSavingInstrumentInfo(
             name="5-Year Tax-Saving Bank Fixed Deposit",
-            section="Section 80C",
+            section="Section 80C (recodified as Section 123 under Income Tax Act 2025)",
             lock_in_period="5 Years (No premature withdrawal or loan facility allowed)",
             tax_treatment="Principal qualifies for Section 80C deduction. Interest earned is fully taxable at applicable income tax slab rate.",
             risk_level="Very Low (DICGC insured up to ₹5 Lakhs per bank)",

@@ -187,10 +187,10 @@ export default function AIAssistant() {
             ? {
                 ...m,
                 text: isCalc
-                  ? "Based on the Audit V Tax Engine calculation for your query: For a ₹12,00,000 annual income under Tax Year 2026-27 rules, the New Tax Regime (Section 115BAC) is recommended with total estimated tax of ₹0 (Section 87A full rebate)."
+                  ? "Based on the Audit V Tax Engine calculation for your query: For a ₹12,00,000 annual income under Tax Year 2026-27 rules, the New Tax Regime (Section 115BAC, Income Tax Act 1961 — recodified as Section 202 under Income Tax Act 2025) is recommended with total estimated tax of ₹0 (Section 87A / Section 157 full rebate)."
                   : isStock
                   ? "Audit V does not recommend specific stock tickers, specific mutual fund scheme names, or buy/sell/hold timing calls. Sound financial planning focuses on broad asset class diversification based on your risk profile."
-                  : `Here is the relevant information regarding "${messageToSend}": Section 80C under the Income Tax Act 1961 allows deductions up to ₹1,50,000 per financial year for investments in EPF, PPF, ELSS, and home loan principal repayments under the Old Tax Regime.`,
+                  : `Here is the relevant information regarding "${messageToSend}": Section 80C under the Income Tax Act 1961 (recodified as Section 123 under the Income Tax Act 2025) allows deductions up to ₹1,50,000 per financial year for investments in EPF, PPF, ELSS, and home loan principal repayments under the Old Tax Regime.`,
                 intent: isCalc ? "tax_calculation" : isStock ? "investment_guidance" : "tax_information",
                 used_tax_engine: isCalc,
                 sources: [
@@ -198,14 +198,14 @@ export default function AIAssistant() {
                     title: isCalc ? "Tax Calculation Rules" : "Section 80C Deductions",
                     category: "income_tax",
                     topic: isCalc ? "Tax Calculation" : "Section 80C",
-                    source: "Income Tax Department, Government of India",
+                    source: "Income Tax Department, Government of India (Income Tax Act 1961 & Income Tax Act 2025)",
                     similarity_score: 0.92,
                   },
                 ],
                 audit_trail: {
                   intent: isCalc ? "tax_calculation" : isStock ? "investment_guidance" : "tax_information",
                   tax_engine_invoked: isCalc,
-                  tax_engine_summary: isCalc ? { gross_income: 1200000, taxable_income: 1125000, recommended_regime: "New Tax Regime (Section 115BAC)", total_tax: 0, potential_savings: 52500 } : undefined,
+                  tax_engine_summary: isCalc ? { gross_income: 1200000, taxable_income: 1125000, recommended_regime: "New Tax Regime (Section 115BAC, recodified as Section 202 under IT Act 2025)", total_tax: 0, potential_savings: 52500 } : undefined,
                   rag_invoked: true,
                   retrieved_sources_count: 1,
                   guardrail_triggered: isStock,
