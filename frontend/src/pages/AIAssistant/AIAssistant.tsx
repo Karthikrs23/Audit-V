@@ -341,7 +341,7 @@ export default function AIAssistant() {
                       How this answer was generated
                     </span>
                     <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-cyan-400/10 px-2 py-0.5 rounded font-mono">
-                      {m.audit_trail?.processing_time_ms ? `${m.audit_trail.processing_time_ms} ms` : "Audit Trail"}
+                      {m.audit_trail?.processing_time_ms ? `Routing: ${m.audit_trail.processing_time_ms} ms` : "Audit Trail"}
                       {expandedTrails[m.id] ? <ChevronDown className="h-3 w-3 ml-0.5 text-cyan-300" /> : <ChevronRight className="h-3 w-3 ml-0.5 text-slate-400" />}
                     </span>
                   </button>
@@ -390,6 +390,12 @@ export default function AIAssistant() {
                           <span>Total Tax: <strong className="text-cyan-300">₹{m.audit_trail.tax_engine_summary.total_tax?.toLocaleString()}</strong></span>
                         </div>
                       )}
+
+                      {/* Latency Breakdown Explanation Note */}
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
+                        <span>⚡ <strong>Pipeline Routing Latency</strong>: {m.audit_trail?.processing_time_ms} ms (Pre-processing, Intent Routing & RAG Search)</span>
+                        <span className="text-cyan-300">SSE Token Streaming Active</span>
+                      </div>
                     </div>
                   )}
                 </div>
