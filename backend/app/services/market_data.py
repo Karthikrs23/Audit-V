@@ -4,7 +4,10 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
-import yfinance as yf
+try:
+    import yfinance as yf
+except Exception:
+    yf = None
 
 from app.core.logging import get_logger
 from app.schemas.market import MarketQuotesResponse, QuoteItem
@@ -48,9 +51,11 @@ FALLBACK_QUOTES: Dict[str, Dict[str, float]] = {
 def _fetch_single_quote(symbol: str, name: str, category: str) -> QuoteItem:
     """Fetch quote data for a symbol via yfinance with fallback protection."""
     try:
-        ticker = yf.Ticker(symbol)
-        # Fetch 2-day history to safely calculate price change from previous close
-        hist = ticker.history(period="2d")
+        if yf is not None:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="2d")
+        else:
+            hist = None
 
         if hist is not None and len(hist) > 0:
             latest_row = hist.iloc[-1]

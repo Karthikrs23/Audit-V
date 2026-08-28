@@ -52,7 +52,7 @@ def load_finetuned_model() -> Tuple[Any, Any]:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
+            bnb_4bit_use_double_quant=False,
             bnb_4bit_compute_dtype=torch.float16,
         )
 
@@ -68,7 +68,7 @@ def load_finetuned_model() -> Tuple[Any, Any]:
         base_model = AutoModelForCausalLM.from_pretrained(
             settings.HF_MODEL_NAME,
             quantization_config=bnb_config,
-            device_map="auto",
+            device_map={"": 0},
             attn_implementation="sdpa",
             trust_remote_code=True,
         )
@@ -338,12 +338,33 @@ class LLMService:
 
         prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer(prompt, return_tensors="pt")
-        target_device = getattr(model, "device", "cuda")
+        target_device = getattr(model, "device", "cuda:0")
         if hasattr(inputs, "to"):
             inputs = inputs.to(target_device)
 
+        # Phase 2 — Runtime Diagnostic Logging
+        cuda_avail = torch.cuda.is_available()
+        gpu_name = torch.cuda.get_device_name(0) if cuda_avail else "N/A"
+        first_param_dev = next(model.parameters()).device if hasattr(model, "parameters") else target_device
+        input_ids_dev = inputs.input_ids.device if hasattr(inputs, "input_ids") else "N/A"
+        attn_mask_dev = inputs.attention_mask.device if hasattr(inputs, "attention_mask") else "N/A"
+        mem_alloc = f"{torch.cuda.memory_allocated(0)/(1024**3):.3f} GB" if cuda_avail else "0 GB"
+        mem_res = f"{torch.cuda.memory_reserved(0)/(1024**3):.3f} GB" if cuda_avail else "0 GB"
+
+        logger.info(f"[AUDIT V] CUDA Available: {cuda_avail}")
+        logger.info(f"[AUDIT V] GPU: {gpu_name}")
+        logger.info(f"[AUDIT V] Model Device: {first_param_dev}")
+        logger.info(f"[AUDIT V] input_ids Device: {input_ids_dev}")
+        logger.info(f"[AUDIT V] attention_mask Device: {attn_mask_dev}")
+        logger.info(f"[AUDIT V] Generation Path: GPU")
+        logger.info(f"[AUDIT V] CUDA Memory Allocated: {mem_alloc} | Reserved: {mem_res}")
+        logger.info("[AUDIT V] Starting model.generate()")
+
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
         t0 = time.time()
-        with torch.no_grad():
+        with torch.inference_mode():
             output_ids = model.generate(
                 **inputs,
                 max_new_tokens=min(self.settings.LLM_MAX_NEW_TOKENS, 256),
@@ -434,9 +455,30 @@ class LLMService:
 
         prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer(prompt, return_tensors="pt")
-        target_device = getattr(model, "device", "cuda")
+        target_device = getattr(model, "device", "cuda:0")
         if hasattr(inputs, "to"):
             inputs = inputs.to(target_device)
+
+        # Phase 2 — Runtime Diagnostic Logging
+        cuda_avail = torch.cuda.is_available()
+        gpu_name = torch.cuda.get_device_name(0) if cuda_avail else "N/A"
+        first_param_dev = next(model.parameters()).device if hasattr(model, "parameters") else target_device
+        input_ids_dev = inputs.input_ids.device if hasattr(inputs, "input_ids") else "N/A"
+        attn_mask_dev = inputs.attention_mask.device if hasattr(inputs, "attention_mask") else "N/A"
+        mem_alloc = f"{torch.cuda.memory_allocated(0)/(1024**3):.3f} GB" if cuda_avail else "0 GB"
+        mem_res = f"{torch.cuda.memory_reserved(0)/(1024**3):.3f} GB" if cuda_avail else "0 GB"
+
+        logger.info(f"[AUDIT V] CUDA Available: {cuda_avail}")
+        logger.info(f"[AUDIT V] GPU: {gpu_name}")
+        logger.info(f"[AUDIT V] Model Device: {first_param_dev}")
+        logger.info(f"[AUDIT V] input_ids Device: {input_ids_dev}")
+        logger.info(f"[AUDIT V] attention_mask Device: {attn_mask_dev}")
+        logger.info(f"[AUDIT V] Generation Path: GPU STREAM")
+        logger.info(f"[AUDIT V] CUDA Memory Allocated: {mem_alloc} | Reserved: {mem_res}")
+        logger.info("[AUDIT V] Starting model.generate() [Streamer thread]")
+
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
 
         streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 

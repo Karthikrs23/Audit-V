@@ -1,8 +1,9 @@
-import { Bell, Search, Sparkles } from "lucide-react";
+import { Bell, Sparkles } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import Sidebar from "../components/sidebar/Sidebar";
 import GlobalBackground from "../components/layout/GlobalBackground";
+import VoiceHeaderAssistant from "../components/voice/VoiceHeaderAssistant";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -64,18 +65,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
           {/* Right: Actions & Tools */}
           <div className="flex items-center gap-3.5">
-            {/* Search Bar */}
-            <div className="hidden sm:flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 transition focus-within:border-cyan-400/40 focus-within:bg-white/[0.05]">
-              <Search className="h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Ask Audit V..."
-                className="w-44 md:w-56 bg-transparent text-xs text-white outline-none placeholder:text-slate-500"
-              />
-              <kbd className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                ⌘K
-              </kbd>
-            </div>
+            {/* Integrated Voice Assistant & Search Bar */}
+            <VoiceHeaderAssistant />
 
             {/* Notifications Button */}
             <button

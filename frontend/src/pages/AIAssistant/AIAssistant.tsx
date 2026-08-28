@@ -13,6 +13,10 @@ import {
   ChevronDown,
   ChevronRight,
   Cpu,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 interface SourceRef {
@@ -67,9 +71,87 @@ export default function AIAssistant() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [expandedTrails, setExpandedTrails] = useState<Record<string, boolean>>({});
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
 
   const toggleTrail = (msgId: string) => {
     setExpandedTrails((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
+  };
+
+  // Text-to-Speech playback for chat message bubbles
+  const speakMessage = (msgId: string, textToSpeak: string) => {
+    if (!window.speechSynthesis) return;
+
+    if (speakingMsgId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const cleanText = textToSpeak
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/#+\s/g, "")
+      .replace(/`{1,3}.*?`{1,3}/g, "")
+      .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+      .replace(/[-*]\s/g, "")
+      .replace(/\n+/g, " ")
+      .trim();
+
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    utterance.onstart = () => setSpeakingMsgId(msgId);
+    utterance.onend = () => setSpeakingMsgId(null);
+    utterance.onerror = () => setSpeakingMsgId(null);
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Speech-to-Text for chat input box
+  const toggleVoiceInput = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setErrorMsg("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-IN";
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript) setInput(transcript);
+      };
+      recognition.onerror = (err: any) => {
+        console.warn("Speech error:", err);
+        setIsListening(false);
+      };
+      recognition.onend = () => setIsListening(false);
+
+      recognition.start();
+    } catch (e) {
+      console.error("Mic start error:", e);
+      setIsListening(false);
+    }
   };
 
   const sendMessage = async (queryText?: string) => {
@@ -277,8 +359,31 @@ export default function AIAssistant() {
                     : "bg-black/50 border border-white/10 text-slate-200"
                 }`}
               >
-                {m.text || (m.isStreaming && <span className="animate-pulse text-cyan-300 font-medium">Generating answer tokens...</span>)}
-                {m.isStreaming && m.text && <span className="inline-block w-2 h-4 ml-1 bg-cyan-400 animate-ping align-middle" />}
+                {m.text}
+                {m.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-cyan-400 animate-pulse rounded-full" />}
+
+                {m.sender === "ai" && m.text && !m.isStreaming && (
+                  <div className="flex items-center justify-end gap-2 mt-2 pt-1.5 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => speakMessage(m.id, m.text)}
+                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300 transition"
+                      title={speakingMsgId === m.id ? "Stop speaking" : "Listen to response"}
+                    >
+                      {speakingMsgId === m.id ? (
+                        <>
+                          <VolumeX className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+                          <span className="text-emerald-400 font-medium">Stop Voice</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="h-3.5 w-3.5 text-cyan-400" />
+                          <span>Listen</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Insufficient Grounding Warning Badge */}
@@ -438,6 +543,19 @@ export default function AIAssistant() {
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             className="flex-1 bg-transparent text-xs sm:text-sm text-white outline-none placeholder:text-slate-500"
           />
+
+          <button
+            type="button"
+            onClick={toggleVoiceInput}
+            className={`p-2.5 rounded-xl transition ${
+              isListening
+                ? "bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.4)]"
+                : "text-slate-400 hover:text-cyan-300 hover:bg-white/10"
+            }`}
+            title={isListening ? "Listening... Click to stop" : "Voice Input"}
+          >
+            {isListening ? <MicOff className="h-4 w-4 text-red-400 animate-pulse" /> : <Mic className="h-4 w-4" />}
+          </button>
 
           <button
             type="button"
