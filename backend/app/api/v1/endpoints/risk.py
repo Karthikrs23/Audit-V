@@ -7,15 +7,19 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.ml.anomaly_detector import TransactionAnomalyDetector
 from app.ml.explanation_engine import generate_risk_summary_text
+from app.ml.taxpayer_risk_model import TaxpayerRiskModel
 from app.schemas.risk import (
     AnalyzedTransaction,
     RiskAnalysisRequest,
     RiskAnalysisResponse,
     RiskSummary,
+    TaxpayerRiskInput,
+    TaxpayerRiskResponse,
 )
 
 router = APIRouter(prefix="/risk", tags=["Risk & Fraud Detection"])
 detector = TransactionAnomalyDetector(contamination=0.06, n_estimators=100, random_state=42)
+taxpayer_model = TaxpayerRiskModel()
 
 # Absolute path to root datasets/financial/transactions_synthetic.json
 ROOT_DIR = Path(__file__).resolve().parents[4].parent
@@ -117,4 +121,47 @@ def analyze_transactions(request: RiskAnalysisRequest) -> RiskAnalysisResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error performing risk analysis: {str(err)}",
+        ) from err
+
+
+@router.post(
+    "/taxpayer",
+    response_model=TaxpayerRiskResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Taxpayer Compliance Risk Classification",
+    description="Predicts taxpayer compliance risk level (Low, Medium, High) using Random Forest model trained on Taxpayer Dataset.",
+)
+def predict_taxpayer_risk(request: TaxpayerRiskInput) -> TaxpayerRiskResponse:
+    """Predict taxpayer risk level, probability distribution, and compliance flags."""
+    try:
+        res = taxpayer_model.predict_taxpayer(request.model_dump())
+        return TaxpayerRiskResponse(
+            taxpayer_id=request.taxpayer_id or "TAX-001",
+            predicted_risk_level=res["predicted_risk_level"],
+            risk_probabilities=res["risk_probabilities"],
+            risk_flags=res["risk_flags"],
+            taxpayer_summary=res["taxpayer_summary"],
+        )
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error predicting taxpayer risk: {str(err)}",
+        ) from err
+
+
+@router.post(
+    "/train",
+    status_code=status.HTTP_200_OK,
+    summary="Train Taxpayer Risk Model",
+    description="Trains/retrains Random Forest classifier on the current taxpayer dataset.",
+)
+def train_taxpayer_model() -> Dict[str, Any]:
+    """Retrain Taxpayer Risk Model on dataset."""
+    try:
+        res = taxpayer_model.train_from_csv()
+        return {"status": "SUCCESS", "message": "Taxpayer Risk Model trained successfully.", "details": res}
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error training taxpayer risk model: {str(err)}",
         ) from err
