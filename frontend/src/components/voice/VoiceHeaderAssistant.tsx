@@ -13,6 +13,10 @@ import {
   ShieldAlert,
   ArrowRight,
   AlertTriangle,
+  HelpCircle,
+  Compass,
+  Zap,
+  CheckCircle2,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -69,6 +73,8 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
   // Response overlay state
   const [voiceResponse, setVoiceResponse] = useState<VoiceResponse | null>(null);
   const [showOverlay, setShowOverlay] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [navToast, setNavToast] = useState<string | null>(null);
   const [conversationHistory, setConversationHistory] = useState<
     { role: "user" | "assistant"; content: string }[]
   >([]);
@@ -77,6 +83,81 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const VOICE_COMMAND_MAP = [
+    {
+      keywords: ["dashboard", "home", "command center", "overview", "go to dashboard", "open dashboard", "show dashboard"],
+      route: "/dashboard",
+      label: "Financial Command Center",
+      spokenText: "Opening Financial Command Center Dashboard.",
+    },
+    {
+      keywords: ["ai assistant", "assistant", "chat", "ask ai", "gpt", "open assistant", "go to assistant", "talk to ai"],
+      route: "/ai-assistant",
+      label: "AI Tax & Financial Assistant",
+      spokenText: "Opening AI Tax and Financial Assistant.",
+    },
+    {
+      keywords: ["tax", "tax calculator", "income tax", "gst", "compliance", "open tax", "go to tax", "tax engine"],
+      route: "/tax",
+      label: "Tax & GST Compliance Engine",
+      spokenText: "Opening Tax and GST Compliance Engine.",
+    },
+    {
+      keywords: ["salary", "salary planner", "salary tax", "optimize salary", "pay slip", "open salary"],
+      route: "/salary-tax",
+      label: "Salary & Tax Optimizer",
+      spokenText: "Opening Salary and Tax Optimizer.",
+    },
+    {
+      keywords: ["market", "stock market", "nifty", "sensex", "stocks", "open market", "market intelligence"],
+      route: "/market",
+      label: "Market Intelligence Hub",
+      spokenText: "Opening Market Intelligence Hub.",
+    },
+    {
+      keywords: ["banking", "bank accounts", "bank feeds", "transactions", "open banking"],
+      route: "/banking",
+      label: "Banking & Financial Feeds",
+      spokenText: "Opening Banking and Financial Feeds.",
+    },
+    {
+      keywords: ["investments", "portfolio", "investment tracker", "mutual funds", "open investments"],
+      route: "/investments",
+      label: "Investment Tracker",
+      spokenText: "Opening Investment Tracker.",
+    },
+    {
+      keywords: ["risk", "fraud", "anomalies", "security", "anomaly detection", "open risk", "show anomalies"],
+      route: "/risk-fraud",
+      label: "Risk & Fraud Anomaly Detection",
+      spokenText: "Opening Risk and Fraud Anomaly Detection.",
+    },
+    {
+      keywords: ["financial analysis", "cashflow", "cash flow", "financial reports", "open financial analysis"],
+      route: "/financial-analysis",
+      label: "Financial Analysis & Cashflow",
+      spokenText: "Opening Financial Analysis and Cashflow.",
+    },
+    {
+      keywords: ["documents", "vault", "invoices", "bills", "open documents", "storage"],
+      route: "/documents",
+      label: "Document & Invoice Storage Vault",
+      spokenText: "Opening Document and Invoice Storage Vault.",
+    },
+    {
+      keywords: ["reports", "audit reports", "financial statements", "open reports"],
+      route: "/reports",
+      label: "Financial Reports",
+      spokenText: "Opening Financial Reports.",
+    },
+    {
+      keywords: ["settings", "configuration", "preferences", "open settings", "system settings"],
+      route: "/settings",
+      label: "Application Settings",
+      spokenText: "Opening Application Settings.",
+    },
+  ];
 
   // Initialize Web Speech Recognition
   useEffect(() => {
@@ -255,7 +336,7 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
     setIsSpeaking(false);
   };
 
-  // Submit query through EXISTING Audit V Assistant API
+  // Submit query through Voice Navigation Router & EXISTING Audit V Assistant API
   const handleSubmitQuery = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
@@ -265,6 +346,39 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
     stopListening();
     stopSpeaking();
 
+    const lowerQuery = queryToSend.toLowerCase().trim();
+
+    // 1. Audio Control Voice Commands
+    if (["stop speaking", "mute", "be quiet", "silence", "stop audio", "stop voice"].some((k) => lowerQuery.includes(k))) {
+      stopSpeaking();
+      setIsProcessing(false);
+      setShowOverlay(false);
+      return;
+    }
+
+    // 2. Help Voice Commands
+    if (["help", "voice commands", "what can i say", "commands list", "options"].some((k) => lowerQuery === k || lowerQuery.includes("voice command"))) {
+      setShowHelpModal(true);
+      setIsProcessing(false);
+      setShowOverlay(false);
+      speakText("Here are the available voice commands to control Audit V.");
+      return;
+    }
+
+    // 3. Direct Navigation Voice Commands across Audit V pages
+    for (const cmd of VOICE_COMMAND_MAP) {
+      if (cmd.keywords.some((kw) => lowerQuery === kw || lowerQuery.includes(kw))) {
+        setIsProcessing(false);
+        setShowOverlay(false);
+        setNavToast(`Navigated to ${cmd.label}`);
+        navigate(cmd.route);
+        speakText(cmd.spokenText);
+        setTimeout(() => setNavToast(null), 3500);
+        return;
+      }
+    }
+
+    // 4. Financial / Tax / RAG / Anomaly Queries passed to Backend Pipeline
     setIsProcessing(true);
     setMicError(null);
     setShowOverlay(true);
@@ -484,6 +598,17 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
             </button>
           )}
 
+          {/* Voice Commands Help Button */}
+          <button
+            type="button"
+            onClick={() => setShowHelpModal(true)}
+            className="p-1 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/10 transition-colors"
+            title="Voice Commands Guide & Navigation Help"
+            aria-label="Voice Commands Guide"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
+
           {/* Main Microphone Toggle Button */}
           <button
             type="button"
@@ -653,6 +778,154 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
                 <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. VOICE NAVIGATION TOAST NOTIFICATION BANNER                             */}
+      {/* Appears when a voice navigation command executes                          */}
+      {/* ========================================================================= */}
+      {navToast && (
+        <div className="fixed top-20 right-8 z-50 flex items-center gap-2.5 rounded-2xl border border-cyan-400/40 bg-[#030712]/95 px-4 py-3 text-xs text-cyan-300 shadow-[0_0_25px_rgba(6,182,212,0.3)] backdrop-blur-2xl animate-in fade-in slide-in-from-top-2">
+          <Zap className="h-4 w-4 text-cyan-400 animate-bounce" />
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">⚡ Voice Command Executed</span>
+            <span className="font-bold text-white text-xs">{navToast}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 5. VOICE COMMANDS CHEAT SHEET HELP MODAL                                   */}
+      {/* Displays all available voice commands to control Audit V                  */}
+      {/* ========================================================================= */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in">
+          <div className="relative w-full max-w-xl rounded-3xl border border-cyan-500/30 bg-[#030712] p-6 shadow-2xl text-xs text-slate-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                  <Compass className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white tracking-tight">Audit V Voice Commands Guide</h3>
+                  <p className="text-slate-400 text-[11px]">Speak any of these commands to navigate & control Audit V</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHelpModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content: Commands Categories Grid */}
+            <div className="mt-4 max-h-96 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+              {/* Category 1: Navigation Voice Commands */}
+              <div>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 mb-2 flex items-center gap-1.5">
+                  <Compass className="h-3.5 w-3.5" />
+                  Navigation Voice Commands
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Go to Dashboard"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Financial Command Center</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Go to Tax" / "Tax Calculator"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Tax & GST Engine</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Go to Salary Planner"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Salary Tax Optimizer</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Open Market" / "Stocks"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Market Intelligence Hub</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Open Banking"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Bank Feeds & Accounts</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Show Risk and Fraud"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Risk & Anomaly Detection</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Open Documents" / "Vault"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Document Vault</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Open Settings"</span>
+                    <p className="text-slate-400 text-[10px] mt-0.5">Navigates to Application Settings</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category 2: Tax & Financial Voice Queries */}
+              <div>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5" />
+                  Tax & Financial Voice Queries
+                </h4>
+                <div className="space-y-1.5">
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03] flex items-center justify-between">
+                    <span className="font-semibold text-white">"Calculate tax for 12 lakh income"</span>
+                    <span className="text-emerald-400 font-mono text-[10px]">Executes Tax Engine</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03] flex items-center justify-between">
+                    <span className="font-semibold text-white">"What is Section 80C under recodified Section 123?"</span>
+                    <span className="text-cyan-400 font-mono text-[10px]">Queries RAG Vector DB</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-white/5 bg-white/[0.03] flex items-center justify-between">
+                    <span className="font-semibold text-white">"What if I invest 50,000 in NPS?"</span>
+                    <span className="text-violet-400 font-mono text-[10px]">Conversational Context</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category 3: Voice Control Commands */}
+              <div>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
+                  <Volume2 className="h-3.5 w-3.5" />
+                  Voice System Controls
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Stop speaking" / "Mute"</span>
+                    <p className="text-slate-400 text-[10px]">Silences Text-to-Speech audio</p>
+                  </div>
+                  <div className="p-2 rounded-xl border border-white/5 bg-white/[0.03]">
+                    <span className="font-semibold text-white">"Help"</span>
+                    <p className="text-slate-400 text-[10px]">Opens this commands guide</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-3">
+              <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Microphone status: Ready</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHelpModal(false);
+                  startListening();
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-500 text-slate-950 font-bold hover:from-cyan-300 hover:to-cyan-400 transition"
+              >
+                <Mic className="h-3.5 w-3.5" />
+                <span>Start Voice Control</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
