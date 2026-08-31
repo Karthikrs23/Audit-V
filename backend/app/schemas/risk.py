@@ -84,3 +84,33 @@ class RiskAnalysisResponse(BaseModel):
         "Audit V Anomaly Detection Engine identifies statistical outliers and pattern flags. "
         "Flags indicate potential risk for investigation and do not automatically constitute confirmed fraud."
     )
+
+
+class TaxpayerRiskInput(BaseModel):
+    """Input payload for single taxpayer risk analysis."""
+
+    taxpayer_id: Optional[str] = "TAX-001"
+    revenue: float = Field(..., gt=0, description="Annual Revenue in INR")
+    expenses: float = Field(..., ge=0, description="Annual Expenses in INR")
+    tax_liability: float = Field(..., ge=0, description="Calculated Tax Liability in INR")
+    tax_paid: float = Field(..., ge=0, description="Actual Tax Paid in INR")
+    late_filings: int = Field(default=0, ge=0, description="Number of late filing occurrences")
+    compliance_violations: int = Field(default=0, ge=0, description="Number of compliance violations")
+    industry: str = Field(default="Finance", description="Industry classification (Finance, Retail, Manufacturing, Healthcare, Tech)")
+    audit_findings: int = Field(default=0, ge=0, description="Number of audit findings")
+
+
+class TaxpayerRiskResponse(BaseModel):
+    """Structured risk classification response for taxpayer."""
+
+    taxpayer_id: str
+    predicted_risk_level: str = Field(..., description="Risk Level (Low, Medium, High)")
+    risk_probabilities: Dict[str, float] = Field(default_factory=dict)
+    risk_flags: List[str] = Field(default_factory=list)
+    taxpayer_summary: Dict[str, Any] = Field(default_factory=dict)
+    model_info: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "model": "Random Forest Taxpayer Compliance Classifier",
+            "trained_on": "Indian Income Tax & Compliance Dataset",
+        }
+    )
