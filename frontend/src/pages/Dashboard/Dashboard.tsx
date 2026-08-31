@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import FloatingPanel from "../../components/layout/FloatingPanel";
 import {
   ArrowUpRight,
@@ -18,6 +19,7 @@ const stats = [
     description: "Excellent rating",
     icon: ShieldCheck,
     trend: "+4.8%",
+    path: "/financial-analysis",
   },
   {
     title: "Market Overview",
@@ -25,6 +27,7 @@ const stats = [
     description: "Positive momentum",
     icon: TrendingUp,
     trend: "Today",
+    path: "/market",
   },
   {
     title: "Tax Compliance",
@@ -32,6 +35,7 @@ const stats = [
     description: "High compliance score",
     icon: FileCheck2,
     trend: "+6.0%",
+    path: "/tax",
   },
   {
     title: "Portfolio",
@@ -39,10 +43,12 @@ const stats = [
     description: "Current net asset value",
     icon: CircleDollarSign,
     trend: "+8.2%",
+    path: "/investments",
   },
 ];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   return (
     <div className="space-y-8 relative">
       {/* =====================================================
@@ -73,7 +79,8 @@ export default function Dashboard() {
           <div className="pt-2">
             <button
               type="button"
-              className="group inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-400 to-cyan-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.35)] transition-all duration-300 hover:scale-105 hover:from-cyan-300 hover:to-cyan-400 hover:shadow-[0_0_40px_rgba(6,182,212,0.5)]"
+              onClick={() => navigate("/ai-assistant")}
+              className="group inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-400 to-cyan-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.35)] transition-all duration-300 hover:scale-105 hover:from-cyan-300 hover:to-cyan-400 hover:shadow-[0_0_40px_rgba(6,182,212,0.5)] cursor-pointer"
             >
               <span>Ask Audit V</span>
               <ArrowUpRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -92,7 +99,8 @@ export default function Dashboard() {
           return (
             <FloatingPanel
               key={stat.title}
-              className="group !p-6 hover:-translate-y-1 hover:border-cyan-400/30 hover:shadow-[0_10px_30px_rgba(6,182,212,0.12)]"
+              onClick={() => navigate(stat.path)}
+              className="group !p-6 hover:-translate-y-1 hover:border-cyan-400/30 hover:shadow-[0_10px_30px_rgba(6,182,212,0.12)] cursor-pointer transition"
             >
               <div className="flex items-center justify-between">
                 <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-cyan-300">
@@ -130,7 +138,10 @@ export default function Dashboard() {
       ====================================================== */}
       <section className="grid gap-6 lg:grid-cols-3 relative z-10">
         {/* Market Intelligence Panel */}
-        <FloatingPanel className="lg:col-span-2 space-y-6">
+        <FloatingPanel
+          onClick={() => navigate("/market")}
+          className="lg:col-span-2 space-y-6 cursor-pointer hover:border-cyan-400/30 transition"
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
@@ -188,7 +199,8 @@ export default function Dashboard() {
 
           <button
             type="button"
-            className="mt-6 w-full rounded-xl border border-cyan-400/30 bg-cyan-400/10 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-400/20 hover:text-white"
+            onClick={() => navigate("/ai-assistant")}
+            className="mt-6 w-full rounded-xl border border-cyan-400/30 bg-cyan-400/10 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-400/20 hover:text-white cursor-pointer"
           >
             Ask AI for details
           </button>

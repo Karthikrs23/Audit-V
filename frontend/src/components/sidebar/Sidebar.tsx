@@ -98,32 +98,29 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           LOGO / BRAND HEADER
       ====================================================== */}
       <div className="flex h-[76px] shrink-0 items-center border-b border-white/10 px-4">
-        <div className="flex items-center gap-3 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => navigate("/dashboard")}
+          className="flex items-center gap-3 overflow-hidden text-left group cursor-pointer w-full"
+          title="Audit V Financial Intelligence Dashboard"
+        >
           {/* Logo Icon */}
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard")}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.2)] transition hover:bg-cyan-400/20"
-          >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.2)] transition group-hover:bg-cyan-400/20 group-hover:scale-105">
             <span className="text-lg font-bold tracking-wider">A</span>
-          </button>
+          </div>
 
           {/* Logo Text */}
           {!collapsed && (
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="text-left truncate transition-opacity duration-200"
-            >
-              <h1 className="text-base font-bold tracking-[0.18em] text-white leading-tight">
+            <div className="truncate transition-opacity duration-200">
+              <h1 className="text-base font-bold tracking-[0.18em] text-white leading-tight group-hover:text-cyan-300 transition-colors">
                 AUDIT V
               </h1>
               <p className="text-[9px] uppercase tracking-[0.25em] text-cyan-400 font-semibold">
                 Financial Intelligence
               </p>
-            </button>
+            </div>
           )}
-        </div>
+        </button>
       </div>
 
       {/* =====================================================
