@@ -3,11 +3,13 @@ import type { ReactNode } from "react";
 interface FloatingPanelProps {
   children: ReactNode;
   className?: string;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-export default function FloatingPanel({ children, className = "" }: FloatingPanelProps) {
+export default function FloatingPanel({ children, className = "", onClick }: FloatingPanelProps) {
   return (
     <div
+      onClick={onClick}
       className={`
         relative rounded-3xl border border-white/10
         bg-[#030712]/75 backdrop-blur-2xl

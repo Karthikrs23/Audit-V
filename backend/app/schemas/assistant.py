@@ -66,3 +66,35 @@ class AssistantChatResponse(BaseModel):
         "Audit V AI Assistant provides information grounded in tax rules and database context. "
         "It does not constitute official legal or tax filing guarantees."
     )
+
+
+class VoiceIntentRequest(BaseModel):
+    """Request payload for Voice Assistant intent classification."""
+
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Spoken or typed utterance text from user.",
+    )
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Utterance text cannot be empty or consist solely of whitespace.")
+        if len(v) > 1000:
+            raise ValueError("Utterance text exceeds maximum allowed length of 1000 characters.")
+        return v.strip()
+
+
+class VoiceIntentResponse(BaseModel):
+    """Structured response for Voice Assistant intent recognition."""
+
+    input_text: str = Field(description="The user's original voice or text utterance.")
+    intent: str = Field(description="Predicted intent label from trained classifier.")
+    confidence: float = Field(description="Prediction confidence score between 0.0 and 1.0.")
+    success: bool = Field(default=True, description="Whether intent recognition succeeded.")
+    action: Optional[str] = Field(default=None, description="Recommended downstream controlled action.")
+    message: Optional[str] = Field(default=None, description="Human-readable voice or action response.")
+

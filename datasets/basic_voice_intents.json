@@ -1,0 +1,91 @@
+{
+  "intents": [
+    {
+      "intent": "greeting",
+      "utterances": [
+        "hello",
+        "hi",
+        "hey there",
+        "good morning",
+        "good evening",
+        "hi assistant",
+        "wake up"
+      ]
+    },
+    {
+      "intent": "weather",
+      "utterances": [
+        "what's the weather like today",
+        "is it going to rain",
+        "tell me the forecast",
+        "how cold is it outside",
+        "do I need an umbrella",
+        "what's the temperature"
+      ]
+    },
+    {
+      "intent": "time_date",
+      "utterances": [
+        "what time is it",
+        "tell me the time",
+        "what day is today",
+        "what's today's date",
+        "what time is sunset"
+      ]
+    },
+    {
+      "intent": "set_alarm",
+      "utterances": [
+        "set an alarm for 7 am",
+        "wake me up at 6",
+        "create a timer for 10 minutes",
+        "remind me to call John in an hour",
+        "cancel my 7 am alarm"
+      ]
+    },
+    {
+      "intent": "play_music",
+      "utterances": [
+        "play some music",
+        "play my workout playlist",
+        "skip this song",
+        "pause the music",
+        "turn the volume up",
+        "who sings this song",
+        "play some jazz"
+      ]
+    },
+    {
+      "intent": "stop_cancel",
+      "utterances": [
+        "stop",
+        "cancel",
+        "nevermind",
+        "shut up",
+        "quit",
+        "exit"
+      ]
+    },
+    {
+      "intent": "smart_home",
+      "utterances": [
+        "turn on the lights",
+        "turn off the living room lights",
+        "set the thermostat to 72 degrees",
+        "lock the front door",
+        "dim the lights"
+      ]
+    },
+    {
+      "intent": "general_knowledge",
+      "utterances": [
+        "who is the president",
+        "what is the capital of France",
+        "how tall is Mount Everest",
+        "tell me a joke",
+        "what is 5 times 5",
+        "how far is the moon"
+      ]
+    }
+  ]
+}

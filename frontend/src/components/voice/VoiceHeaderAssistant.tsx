@@ -51,6 +51,7 @@ interface VoiceResponse {
   query: string;
   answer: string;
   intent?: string;
+  confidence?: number;
   sources?: SourceRef[];
   used_tax_engine?: boolean;
   calculation?: Record<string, any>;
@@ -378,14 +379,133 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
       }
     }
 
-    // 4. Financial / Tax / RAG / Anomaly Queries passed to Backend Pipeline
+    // 4. Classify Voice Intent using backend POST /api/v1/assistant/voice-intent
     setIsProcessing(true);
     setMicError(null);
+
+    let classifiedIntent: string | null = null;
+    let classifiedConfidence: number | undefined = undefined;
+
+    try {
+      const intentResp = await fetch("http://localhost:8000/api/v1/assistant/voice-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: queryToSend }),
+      });
+      if (intentResp.ok) {
+        const intentData = await intentResp.json();
+        classifiedIntent = intentData.intent;
+        classifiedConfidence = intentData.confidence;
+      }
+    } catch (intentErr) {
+      console.warn("[Voice Assistant] Voice intent classification fallback:", intentErr);
+    }
+
+    // 5. Handle Specialized Intents from the 8 trained classes
+    if (classifiedIntent === "stop_cancel") {
+      stopSpeaking();
+      setIsProcessing(false);
+      setShowOverlay(false);
+      setNavToast("Voice assistant stopped.");
+      setTimeout(() => setNavToast(null), 2500);
+      return;
+    }
+
+    if (classifiedIntent === "greeting") {
+      const greetMsg = "Hello! Welcome to Audit V. How can I assist you with tax compliance, GST rules, or financial planning today?";
+      setIsProcessing(false);
+      setShowOverlay(true);
+      setVoiceResponse({
+        query: queryToSend,
+        answer: greetMsg,
+        intent: "greeting",
+        confidence: classifiedConfidence,
+      });
+      speakText(greetMsg);
+      return;
+    }
+
+    if (classifiedIntent === "time_date") {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+      const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      const timeMsg = `The current time is ${timeStr}, on ${dateStr}.`;
+      setIsProcessing(false);
+      setShowOverlay(true);
+      setVoiceResponse({
+        query: queryToSend,
+        answer: timeMsg,
+        intent: "time_date",
+        confidence: classifiedConfidence,
+      });
+      speakText(timeMsg);
+      return;
+    }
+
+    if (classifiedIntent === "set_alarm") {
+      const alarmMsg = "Filing deadlines, advance tax reminders, and compliance dates are tracked in your Audit V Compliance Calendar on the Dashboard.";
+      setIsProcessing(false);
+      setShowOverlay(true);
+      setVoiceResponse({
+        query: queryToSend,
+        answer: alarmMsg,
+        intent: "set_alarm",
+        confidence: classifiedConfidence,
+      });
+      speakText(alarmMsg);
+      return;
+    }
+
+    if (classifiedIntent === "play_music") {
+      const musicMsg = "Audio playback is outside our scope. Audit V is optimized for tax audits, compliance, and wealth intelligence.";
+      setIsProcessing(false);
+      setShowOverlay(true);
+      setVoiceResponse({
+        query: queryToSend,
+        answer: musicMsg,
+        intent: "play_music",
+        confidence: classifiedConfidence,
+      });
+      speakText(musicMsg);
+      return;
+    }
+
+    if (classifiedIntent === "smart_home") {
+      const homeMsg = "Smart home automation is outside our financial scope, but I can help optimize your household tax deductions and budget!";
+      setIsProcessing(false);
+      setShowOverlay(true);
+      setVoiceResponse({
+        query: queryToSend,
+        answer: homeMsg,
+        intent: "smart_home",
+        confidence: classifiedConfidence,
+      });
+      speakText(homeMsg);
+      return;
+    }
+
+    if (classifiedIntent === "weather") {
+      const weatherMsg = "Weather forecasting is outside our financial scope. Audit V specializes in Indian income tax, GST compliance, and market intelligence.";
+      setIsProcessing(false);
+      setShowOverlay(true);
+      setVoiceResponse({
+        query: queryToSend,
+        answer: weatherMsg,
+        intent: "weather",
+        confidence: classifiedConfidence,
+      });
+      speakText(weatherMsg);
+      return;
+    }
+
+    // 6. Informational / General Knowledge / Financial / Tax Queries passed to Backend Pipeline
     setShowOverlay(true);
 
     const initialVoiceResp: VoiceResponse = {
       query: queryToSend,
       answer: "",
+      intent: classifiedIntent || "general_knowledge",
+      confidence: classifiedConfidence,
     };
     setVoiceResponse(initialVoiceResp);
 
@@ -425,7 +545,10 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
       let accumulatedAnswer = "";
-      let responseMeta: Partial<VoiceResponse> = {};
+      let responseMeta: Partial<VoiceResponse> = {
+        intent: classifiedIntent || undefined,
+        confidence: classifiedConfidence,
+      };
 
       while (true) {
         const { value, done } = await reader.read();
@@ -705,8 +828,13 @@ export default function VoiceHeaderAssistant({ onVoiceQuerySubmit }: VoiceHeader
           {/* Intent / Execution Badges */}
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {voiceResponse.intent && (
-              <span className="px-2 py-0.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-semibold uppercase tracking-wider">
-                Intent: {voiceResponse.intent}
+              <span className="px-2 py-0.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-semibold uppercase tracking-wider inline-flex items-center gap-1.5">
+                <span>Intent: {voiceResponse.intent}</span>
+                {voiceResponse.confidence !== undefined && (
+                  <span className="font-mono text-[9px] bg-cyan-500/20 text-cyan-200 px-1 py-0.5 rounded">
+                    {(voiceResponse.confidence * 100).toFixed(0)}%
+                  </span>
+                )}
               </span>
             )}
 

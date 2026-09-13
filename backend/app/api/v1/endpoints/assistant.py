@@ -3,11 +3,18 @@ from __future__ import annotations
 from typing import Union
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
-from app.schemas.assistant import AssistantChatRequest, AssistantChatResponse
+from app.schemas.assistant import (
+    AssistantChatRequest,
+    AssistantChatResponse,
+    VoiceIntentRequest,
+    VoiceIntentResponse,
+)
 from app.services.assistant_service import AssistantService
+from app.services.voice_intent_service import VoiceIntentService
 
 router = APIRouter(prefix="/assistant", tags=["AI Assistant"])
 assistant_service = AssistantService()
+voice_intent_service = VoiceIntentService()
 
 
 @router.post(
@@ -45,3 +52,36 @@ def chat_with_assistant(request: AssistantChatRequest) -> Union[AssistantChatRes
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing your request. Please try again.",
         ) from err
+
+
+@router.post(
+    "/voice-intent",
+    response_model=VoiceIntentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Voice Assistant Intent Classification",
+    description=(
+        "Classifies spoken or typed user utterances into one of the trained voice intents "
+        "using a pre-trained TF-IDF and Logistic Regression pipeline, returning intent and confidence."
+    ),
+)
+def classify_voice_intent(request: VoiceIntentRequest) -> VoiceIntentResponse:
+    """Predict user intent and confidence score from voice/text utterance."""
+    try:
+        result = voice_intent_service.predict_intent(request.text)
+        return VoiceIntentResponse(**result)
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(val_err),
+        ) from val_err
+    except RuntimeError as run_err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Voice intent service is currently unavailable.",
+        ) from run_err
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while processing the voice intent.",
+        ) from err
+
