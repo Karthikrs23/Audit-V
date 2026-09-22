@@ -15,7 +15,7 @@ from app.core.logging import get_logger
 logger = get_logger("taxpayer_risk_model")
 
 MODEL_SAVE_PATH = Path(__file__).resolve().parent / "taxpayer_risk_model.joblib"
-DATASET_PATH = Path(__file__).resolve().parents[2] / "datasets" / "financial" / "taxpayer_risk_dataset.csv"
+DATASET_PATH = Path(__file__).resolve().parents[3] / "datasets" / "financial" / "taxpayer_risk_dataset.csv"
 
 
 class TaxpayerRiskModel:
@@ -87,22 +87,41 @@ class TaxpayerRiskModel:
             else:
                 self.train_from_csv()
 
-        df_input = pd.DataFrame([taxpayer_data])
+        # Standardize key names (support both snake_case lowercase and Title_Case)
+        key_map = {
+            "revenue": "Revenue",
+            "expenses": "Expenses",
+            "tax_liability": "Tax_Liability",
+            "tax_paid": "Tax_Paid",
+            "late_filings": "Late_Filings",
+            "compliance_violations": "Compliance_Violations",
+            "industry": "Industry",
+            "profit": "Profit",
+            "tax_compliance_ratio": "Tax_Compliance_Ratio",
+            "audit_findings": "Audit_Findings",
+            "audit_to_tax_ratio": "Audit_to_Tax_Ratio",
+        }
+        normalized_data = {}
+        for k, v in taxpayer_data.items():
+            canonical_key = key_map.get(k.lower(), k)
+            normalized_data[canonical_key] = v
+
+        df_input = pd.DataFrame([normalized_data])
         
         # Calculate derived fields if missing
         if "Profit" not in df_input.columns or pd.isna(df_input["Profit"].iloc[0]):
-            rev = float(df_input.get("Revenue", [0.0])[0])
-            exp = float(df_input.get("Expenses", [0.0])[0])
+            rev = float(df_input["Revenue"].iloc[0]) if "Revenue" in df_input.columns and not pd.isna(df_input["Revenue"].iloc[0]) else 0.0
+            exp = float(df_input["Expenses"].iloc[0]) if "Expenses" in df_input.columns and not pd.isna(df_input["Expenses"].iloc[0]) else 0.0
             df_input["Profit"] = rev - exp
 
         if "Tax_Compliance_Ratio" not in df_input.columns or pd.isna(df_input["Tax_Compliance_Ratio"].iloc[0]):
-            paid = float(df_input.get("Tax_Paid", [0.0])[0])
-            liab = float(df_input.get("Tax_Liability", [1.0])[0])
+            paid = float(df_input["Tax_Paid"].iloc[0]) if "Tax_Paid" in df_input.columns and not pd.isna(df_input["Tax_Paid"].iloc[0]) else 0.0
+            liab = float(df_input["Tax_Liability"].iloc[0]) if "Tax_Liability" in df_input.columns and not pd.isna(df_input["Tax_Liability"].iloc[0]) else 1.0
             df_input["Tax_Compliance_Ratio"] = round(paid / liab, 2) if liab > 0 else 1.0
 
         if "Audit_to_Tax_Ratio" not in df_input.columns or pd.isna(df_input["Audit_to_Tax_Ratio"].iloc[0]):
-            audit = float(df_input.get("Audit_Findings", [0.0])[0])
-            liab = float(df_input.get("Tax_Liability", [1.0])[0])
+            audit = float(df_input["Audit_Findings"].iloc[0]) if "Audit_Findings" in df_input.columns and not pd.isna(df_input["Audit_Findings"].iloc[0]) else 0.0
+            liab = float(df_input["Tax_Liability"].iloc[0]) if "Tax_Liability" in df_input.columns and not pd.isna(df_input["Tax_Liability"].iloc[0]) else 1.0
             df_input["Audit_to_Tax_Ratio"] = round(audit / liab, 4) if liab > 0 else 0.0
 
         for col in self.numerical_features:
