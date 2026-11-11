@@ -1,148 +1,116 @@
 import { useState, useEffect } from "react";
 import FloatingPanel from "../../components/layout/FloatingPanel";
 import {
-  TrendingUp,
-  DollarSign,
   PieChart as PieIcon,
   BarChart3,
-  ArrowUpRight,
-  Sparkles,
-  Layers,
-  Shield,
-  Briefcase,
-  Lock,
-  AlertCircle,
+  Save,
   CheckCircle2,
+  Building2,
+  User,
 } from "lucide-react";
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
   PieChart,
   Pie,
   Cell,
 } from "recharts";
+import {
+  fetchBankingRecords,
+  fetchFinancialAnalysisData,
+  saveFinancialAnalysisData,
+  type PersonalBudgetCategory,
+} from "../../services/financialApi";
 
-interface AssetAllocationItem {
-  asset_class: string;
-  percentage: number;
-  suggested_monthly_amount: number;
-  description: string;
-}
-
-interface TaxSavingInstrumentInfo {
-  name: string;
-  section: string;
-  lock_in_period: string;
-  tax_treatment: string;
-  risk_level: string;
-  expected_returns_range: string;
-  key_benefits: string[];
-}
-
-interface InvestmentGuidanceResponse {
-  risk_profile: string;
-  annual_gross_income: number;
-  estimated_annual_tax: number;
-  estimated_post_tax_surplus: number;
-  suggested_monthly_investable_surplus: number;
-  unused_80c_headroom: number;
-  nps_80ccd1b_headroom: number;
-  allocations: AssetAllocationItem[];
-  eligible_tax_saving_instruments: TaxSavingInstrumentInfo[];
-  disclaimer: string;
-}
-
-const MONTHLY_REVENUE_EXPENSE = [
-  { month: "Mar", revenue: 4200000, expense: 2800000, profit: 1400000 },
-  { month: "Apr", revenue: 4800000, expense: 3100000, profit: 1700000 },
-  { month: "May", revenue: 5100000, expense: 3300000, profit: 1800000 },
-  { month: "Jun", revenue: 4900000, expense: 2950000, profit: 1950000 },
-  { month: "Jul", revenue: 5600000, expense: 3400000, profit: 2200000 },
-  { month: "Aug", revenue: 6200000, expense: 3700000, profit: 2500000 },
+const DEFAULT_PERSONAL_CATEGORIES: PersonalBudgetCategory[] = [
+  { category: "Housing & Rent", budgeted: 35000, actual: 35000 },
+  { category: "Food & Groceries", budgeted: 15000, actual: 12400 },
+  { category: "Utilities & Bills", budgeted: 6000, actual: 4800 },
+  { category: "Healthcare & Meds", budgeted: 5000, actual: 2100 },
+  { category: "Transport & Fuel", budgeted: 8000, actual: 6500 },
+  { category: "Discretionary & Leisure", budgeted: 10000, actual: 8200 },
 ];
 
-const EXPENSE_BREAKDOWN = [
-  { name: "Payroll & Salaries", value: 45, color: "#38bdf8" },
-  { name: "Vendor Contracts", value: 25, color: "#818cf8" },
-  { name: "IT Infrastructure & Cloud", value: 15, color: "#c084fc" },
-  { name: "Office & Facilities", value: 10, color: "#f472b6" },
-  { name: "Miscellaneous", value: 5, color: "#fb7185" },
-];
-
-const ALLOCATION_COLORS = ["#38bdf8", "#818cf8", "#fbbf24", "#34d399"];
+const PIE_COLORS = ["#38bdf8", "#818cf8", "#c084fc", "#f472b6", "#fbbf24", "#34d399"];
 
 export default function FinancialAnalysis() {
-  const [selectedTimeframe, setSelectedTimeframe] = useState("H1 2026");
+  const [activeMode, setActiveMode] = useState<"personal" | "business">("personal");
 
-  // Investment Guidance State
-  const [income, setIncome] = useState<number>(1200000);
-  const [riskProfile, setRiskProfile] = useState<string>("moderate");
-  const [regime, setRegime] = useState<string>("new");
-  const [existing80c, setExisting80c] = useState<number>(50000);
+  // Personal Finance State
+  const [monthlyIncome, setMonthlyIncome] = useState<number>(125000);
+  const [categories, setCategories] = useState<PersonalBudgetCategory[]>(DEFAULT_PERSONAL_CATEGORIES);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  const [guidance, setGuidance] = useState<InvestmentGuidanceResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  // Business Mode State (Optional separate view)
+  const [bizTurnover, setBizTurnover] = useState<number>(500000);
+  const [bizOperatingCost, setBizOperatingCost] = useState<number>(320000);
 
-  const FALLBACK_GUIDANCE: InvestmentGuidanceResponse = {
-    risk_profile: riskProfile,
-    annual_gross_income: income,
-    estimated_annual_tax: 0,
-    estimated_post_tax_surplus: income,
-    suggested_monthly_investable_surplus: Math.round((income / 12) * 0.3),
-    unused_80c_headroom: 100000,
-    nps_80ccd1b_headroom: 50000,
-    allocations: [
-      { asset_class: "Equity Mutual Funds & Index Funds", percentage: 50, suggested_monthly_amount: Math.round((income / 12) * 0.15), description: "Long-term wealth creation" },
-      { asset_class: "Debt Mutual Funds & Fixed Income", percentage: 30, suggested_monthly_amount: Math.round((income / 12) * 0.09), description: "Capital preservation & liquidity" },
-      { asset_class: "Gold ETFs & Sovereign Bonds", percentage: 10, suggested_monthly_amount: Math.round((income / 12) * 0.03), description: "Inflation hedge" },
-      { asset_class: "Emergency Cash & Liquid Funds", percentage: 10, suggested_monthly_amount: Math.round((income / 12) * 0.03), description: "Immediate liquidity buffer" },
-    ],
-    eligible_tax_saving_instruments: [
-      { name: "ELSS Tax Saver Funds", section: "Section 80C (recodified Sec 123)", lock_in_period: "3 Years", tax_treatment: "EEE", risk_level: "High", expected_returns_range: "12-15%", key_benefits: ["Shortest lock-in under Sec 123", "High equity growth"] },
-      { name: "Public Provident Fund (PPF)", section: "Section 80C (recodified Sec 123)", lock_in_period: "15 Years", tax_treatment: "EEE", risk_level: "Very Low", expected_returns_range: "7.1%", key_benefits: ["Guaranteed sovereign back", "Tax-free interest"] },
-      { name: "National Pension Scheme (NPS)", section: "Section 80CCD(1B)", lock_in_period: "Till retirement (60)", tax_treatment: "EET", risk_level: "Moderate", expected_returns_range: "9-11%", key_benefits: ["Additional ₹50,000 deduction", "Low-cost pension fund"] },
-    ],
-    disclaimer: "SEBI Statutory Compliance Disclaimer: Educational tax & asset allocation guidance only. Not financial advice.",
-  };
-
-  const fetchGuidance = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch("http://localhost:8000/api/v1/investments/guidance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          annual_income: income,
-          risk_profile: riskProfile,
-          regime: regime,
-          existing_80c_deductions: existing80c,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Investment guidance API returned status ${res.status}`);
+  // Load saved analysis data or derive from banking records
+  useEffect(() => {
+    let active = true;
+    async function loadData() {
+      const saved = await fetchFinancialAnalysisData();
+      if (active && saved.monthlyIncome > 0) {
+        setMonthlyIncome(saved.monthlyIncome);
+        if (saved.categories.length > 0) {
+          setCategories(saved.categories);
+        }
+        return;
       }
 
-      const data = await res.json();
-      setGuidance(data);
-    } catch (err: any) {
-      console.warn("Using fallback financial intelligence data:", err);
-      setGuidance(FALLBACK_GUIDANCE);
-    } finally {
-      setLoading(false);
+      // Fallback: check if banking records exist to pre-fill
+      const bank = await fetchBankingRecords();
+      if (active && bank.transactions.length > 0) {
+        const inc = bank.transactions
+          .filter((t) => t.type === "income")
+          .reduce((s, t) => s + t.amount, 0);
+        if (inc > 0) setMonthlyIncome(inc);
+      }
     }
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Real Calculated Metrics
+  const totalActualExpense = categories.reduce((sum, c) => sum + c.actual, 0);
+  const totalBudgetedExpense = categories.reduce((sum, c) => sum + c.budgeted, 0);
+  const monthlySavings = Math.max(0, monthlyIncome - totalActualExpense);
+  const savingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0;
+  const budgetVariance = totalBudgetedExpense - totalActualExpense; // Positive = Under budget (Good)
+
+  // Pie chart dataset
+  const pieData = categories.map((c, i) => ({
+    name: c.category,
+    value: c.actual,
+    color: PIE_COLORS[i % PIE_COLORS.length],
+  }));
+
+  const handleCategoryChange = (index: number, field: "budgeted" | "actual", val: number) => {
+    const updated = [...categories];
+    updated[index][field] = val;
+    setCategories(updated);
   };
 
-  useEffect(() => {
-    fetchGuidance();
-  }, []);
+  const handleSaveAnalysis = async () => {
+    setIsSaving(true);
+    try {
+      await saveFinancialAnalysisData({
+        monthlyIncome,
+        monthlyExpense: totalActualExpense,
+        categories,
+      });
+      setSaveStatus("Financial budget & analysis saved ✓");
+      setTimeout(() => setSaveStatus(null), 3000);
+    } catch {
+      setSaveStatus("Failed to save data.");
+      setTimeout(() => setSaveStatus(null), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -151,394 +119,287 @@ export default function FinancialAnalysis() {
         <div>
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-cyan-300">
-              Audit V Advisory
+              Personal Wealth Analytics
             </span>
-            <span className="flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-              <Sparkles className="h-3.5 w-3.5" />
-              Rule-Based Asset Allocation Engine
+            <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-400">
+              Input-Driven Models
+            </span>
+            <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 text-xs font-bold">
+              Demo data
             </span>
           </div>
           <h1 className="mt-2 text-2xl font-black text-white md:text-3xl">
-            Financial Analysis & Wealth Advisory
+            Financial Analysis & Budget Tracking
           </h1>
           <p className="mt-1 text-sm text-slate-300">
-            Automated asset allocation heuristics, Section 80C tax headroom analysis, and cash flow intelligence.
+            Real personal financial ratios, expense allocation breakdowns, savings rates, and budget variance.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {["Q1 2026", "Q2 2026", "H1 2026"].map((tf) => (
+        {/* View Mode Toggle & Save Button */}
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-xl border border-slate-800 bg-slate-900 p-1">
             <button
-              key={tf}
-              onClick={() => setSelectedTimeframe(tf)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                selectedTimeframe === tf
-                  ? "bg-cyan-500 text-white shadow-md shadow-cyan-500/30"
-                  : "bg-slate-800 text-slate-400 hover:text-white"
+              onClick={() => setActiveMode("personal")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                activeMode === "personal" ? "bg-cyan-500 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              {tf}
+              <User className="h-3.5 w-3.5" />
+              Personal
             </button>
-          ))}
-        </div>
-      </FloatingPanel>
-
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <FloatingPanel>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-400">Total H1 Revenue</p>
-              <h3 className="mt-1 text-2xl font-bold text-white">₹3,08,00,000</h3>
-              <p className="mt-1 text-xs text-emerald-400 flex items-center gap-1 font-medium">
-                <ArrowUpRight className="h-3.5 w-3.5" /> +14.2% YoY growth
-              </p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300">
-              <TrendingUp className="h-6 w-6" />
-            </div>
-          </div>
-        </FloatingPanel>
-
-        <FloatingPanel>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-400">Net Operating Profit</p>
-              <h3 className="mt-1 text-2xl font-bold text-emerald-400">₹1,15,50,000</h3>
-              <p className="mt-1 text-xs text-emerald-300">37.5% Operating Margin</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-300">
-              <DollarSign className="h-6 w-6" />
-            </div>
-          </div>
-        </FloatingPanel>
-
-        <FloatingPanel>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-400">Current Liquidity Ratio</p>
-              <h3 className="mt-1 text-2xl font-bold text-cyan-300">2.45x</h3>
-              <p className="mt-1 text-xs text-cyan-200">Strong working capital position</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300">
-              <Layers className="h-6 w-6" />
-            </div>
-          </div>
-        </FloatingPanel>
-
-        <FloatingPanel>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-400">EBITDA Margin</p>
-              <h3 className="mt-1 text-2xl font-bold text-violet-400">41.8%</h3>
-              <p className="mt-1 text-xs text-violet-300">+2.3% improvement from Q1</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-violet-400/30 bg-violet-400/10 text-violet-300">
-              <BarChart3 className="h-6 w-6" />
-            </div>
-          </div>
-        </FloatingPanel>
-      </div>
-
-      {/* Rule-Based Investment Advisory Workspace */}
-      <FloatingPanel className="space-y-6 border-cyan-400/30">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-cyan-400" />
-              <h2 className="text-xl font-bold text-white">Rule-Based Asset Allocation Engine</h2>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Select your risk tolerance and financial inputs to calculate suggested asset class weightings and tax-saving headroom.
-            </p>
-          </div>
-          <span className="text-xs font-bold text-cyan-300 bg-cyan-400/10 border border-cyan-400/30 px-3 py-1 rounded-full shrink-0">
-            DETERMINISTIC HEURISTIC MODEL
-          </span>
-        </div>
-
-        {/* Input Parameters Form */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl border border-white/10 bg-black/30">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-              Annual Income (₹)
-            </label>
-            <input
-              type="number"
-              value={income}
-              onChange={(e) => setIncome(Number(e.target.value))}
-              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-white focus:border-cyan-400 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-              Risk Profile
-            </label>
-            <select
-              value={riskProfile}
-              onChange={(e) => setRiskProfile(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-white focus:border-cyan-400 focus:outline-none capitalize"
+            <button
+              onClick={() => setActiveMode("business")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                activeMode === "business" ? "bg-cyan-500 text-white" : "text-slate-400 hover:text-white"
+              }`}
             >
-              <option value="conservative">Conservative (Capital Safety)</option>
-              <option value="moderate">Moderate (Balanced Growth)</option>
-              <option value="aggressive">Aggressive (Maximum Equity)</option>
-            </select>
+              <Building2 className="h-3.5 w-3.5" />
+              Business
+            </button>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-              Declared Sec 80C (₹)
-            </label>
-            <input
-              type="number"
-              value={existing80c}
-              onChange={(e) => setExisting80c(Number(e.target.value))}
-              max={150000}
-              min={0}
-              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-white focus:border-cyan-400 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-              Tax Regime
-            </label>
-            <select
-              value={regime}
-              onChange={(e) => setRegime(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-xs font-bold text-white focus:border-cyan-400 focus:outline-none"
-            >
-              <option value="new">New Tax Regime (Sec 115BAC)</option>
-              <option value="old">Old Tax Regime</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
           <button
-            onClick={fetchGuidance}
-            disabled={loading}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 transition"
+            onClick={handleSaveAnalysis}
+            disabled={isSaving}
+            className="flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-xs font-bold text-white shadow-md shadow-cyan-500/20 hover:bg-cyan-400 transition"
           >
-            {loading ? "Calculating Guidance..." : "Re-Calculate Asset Allocation"}
+            <Save className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save Analysis"}
           </button>
         </div>
-
-        {error && (
-          <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs">
-            {error}
-          </div>
-        )}
-
-        {/* Results Workspace */}
-        {guidance && (
-          <div className="space-y-6 pt-2">
-            {/* Key Headroom & Surplus Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10">
-                <p className="text-[11px] font-semibold text-emerald-300 uppercase">Unused Section 80C Headroom</p>
-                <h4 className="text-2xl font-extrabold text-white mt-1">₹{guidance.unused_80c_headroom.toLocaleString("en-IN")}</h4>
-                <p className="text-[11px] text-slate-300 mt-1">Capped at ₹1,50,000 max deduction limit</p>
-              </div>
-
-              <div className="p-4 rounded-xl border border-cyan-400/30 bg-cyan-400/10">
-                <p className="text-[11px] font-semibold text-cyan-300 uppercase">NPS Sec 80CCD(1B) Headroom</p>
-                <h4 className="text-2xl font-extrabold text-white mt-1">₹{guidance.nps_80ccd1b_headroom.toLocaleString("en-IN")}</h4>
-                <p className="text-[11px] text-slate-300 mt-1">Exclusive additional pension tax deduction</p>
-              </div>
-
-              <div className="p-4 rounded-xl border border-violet-400/30 bg-violet-400/10">
-                <p className="text-[11px] font-semibold text-violet-300 uppercase">Suggested Monthly Surplus</p>
-                <h4 className="text-2xl font-extrabold text-white mt-1">₹{guidance.suggested_monthly_investable_surplus.toLocaleString("en-IN")}</h4>
-                <p className="text-[11px] text-slate-300 mt-1">Based on estimated post-tax savings rate</p>
-              </div>
-            </div>
-
-            {/* Asset Allocation Percentage Breakdown */}
-            <div className="space-y-4 pt-2">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <PieIcon className="h-4 w-4 text-cyan-400" />
-                Suggested Asset Class Weightings ({guidance.risk_profile.toUpperCase()} Profile - Total 100%)
-              </h3>
-
-              <div className="space-y-3">
-                {guidance.allocations.map((item, idx) => (
-                  <div key={item.asset_class} className="p-3.5 rounded-xl border border-white/5 bg-black/30 space-y-2">
-                    <div className="flex justify-between items-center text-xs font-bold">
-                      <span className="text-white flex items-center gap-2">
-                        <span
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: ALLOCATION_COLORS[idx % ALLOCATION_COLORS.length] }}
-                        />
-                        {item.asset_class}
-                      </span>
-                      <span className="text-cyan-300 font-extrabold text-sm">{item.percentage}% (₹{item.suggested_monthly_amount.toLocaleString("en-IN")}/mo)</span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${item.percentage}%`,
-                          backgroundColor: ALLOCATION_COLORS[idx % ALLOCATION_COLORS.length],
-                        }}
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-400">{item.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Eligible Tax-Saving Instruments Table */}
-            <div className="space-y-4 pt-2">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Shield className="h-4 w-4 text-emerald-400" />
-                Eligible Tax-Saving Instrument Types (Section 80C & 80CCD)
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {guidance.eligible_tax_saving_instruments.map((inst) => (
-                  <div key={inst.name} className="p-4 rounded-xl border border-white/10 bg-slate-900/60 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-white">{inst.name}</h4>
-                        <span className="text-[10px] font-bold text-cyan-300 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">
-                          {inst.section}
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold text-emerald-400">{inst.expected_returns_range}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[11px] border-y border-white/5 py-2 text-slate-300">
-                      <div>
-                        <span className="text-slate-400 block font-semibold">Lock-In Period:</span>
-                        <span className="font-bold text-amber-300 flex items-center gap-1 mt-0.5">
-                          <Lock className="h-3 w-3" /> {inst.lock_in_period}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block font-semibold">Risk Level:</span>
-                        <span className="font-bold text-slate-200 mt-0.5 block">{inst.risk_level}</span>
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] text-slate-300">
-                      <strong className="text-slate-400 font-semibold">Tax Treatment: </strong>
-                      {inst.tax_treatment}
-                    </p>
-
-                    <div className="space-y-1">
-                      {inst.key_benefits.map((benefit, i) => (
-                        <p key={i} className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
-                          {benefit}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Statutory Advisory Disclaimer */}
-            <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-start gap-2.5">
-              <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>
-                <strong className="font-bold text-amber-200">Statutory Advisor Disclaimer: </strong>
-                {guidance.disclaimer}
-              </span>
-            </div>
-          </div>
-        )}
       </FloatingPanel>
 
-      {/* Visual Charts Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Revenue vs Expense Bar Chart */}
-        <FloatingPanel className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-cyan-400" />
-              Monthly Revenue vs Expense Comparison (₹)
-            </h3>
-            <span className="text-xs text-slate-400">Audit V Ledger Synced</span>
-          </div>
+      {saveStatus && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-300 flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4" />
+          {saveStatus}
+        </div>
+      )}
 
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={MONTHLY_REVENUE_EXPENSE} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} tickFormatter={(v) => `₹${v / 100000}L`} />
-                <Tooltip
-                  formatter={(value: any) => [`₹${Number(value).toLocaleString("en-IN")}`, ""]}
-                  contentStyle={{
-                    backgroundColor: "rgba(15, 23, 42, 0.95)",
-                    borderColor: "rgba(56, 189, 248, 0.2)",
-                    borderRadius: "0.75rem",
-                    color: "#fff",
-                  }}
-                />
-                <Bar dataKey="revenue" name="Revenue" fill="#38bdf8" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="expense" name="Expense" fill="#fb7185" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </FloatingPanel>
-
-        {/* Expense Category Pie Chart */}
-        <FloatingPanel className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <PieIcon className="h-4 w-4 text-cyan-400" />
-              Expense Distribution
-            </h3>
-            <span className="text-xs text-slate-400">Percentage</span>
-          </div>
-
-          <div className="h-52 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={EXPENSE_BREAKDOWN}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={45}
-                  outerRadius={75}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {EXPENSE_BREAKDOWN.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: any) => [`${value}%`, "Share"]}
-                  contentStyle={{
-                    backgroundColor: "rgba(15, 23, 42, 0.95)",
-                    borderColor: "rgba(56, 189, 248, 0.2)",
-                    borderRadius: "0.75rem",
-                    color: "#fff",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="space-y-1.5 border-t border-slate-800 pt-3 text-xs">
-            {EXPENSE_BREAKDOWN.map((item) => (
-              <div key={item.name} className="flex justify-between items-center text-slate-300">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="truncate max-w-[140px]">{item.name}</span>
-                </div>
-                <strong className="text-white">{item.value}%</strong>
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* PERSONAL FINANCES VIEW (PRIMARY DEFAULT)                            */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {activeMode === "personal" && (
+        <div className="space-y-6">
+          {/* Summary KPI Cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <FloatingPanel>
+              <p className="text-xs font-semibold uppercase text-slate-400">Monthly Net Income</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-white font-mono">
+                  ₹{monthlyIncome.toLocaleString("en-IN")}
+                </span>
               </div>
-            ))}
+              <p className="mt-1 text-[11px] text-cyan-300">Take-home salary / Earnings</p>
+            </FloatingPanel>
+
+            <FloatingPanel>
+              <p className="text-xs font-semibold uppercase text-slate-400">Total Monthly Expenses</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-rose-400 font-mono">
+                  ₹{totalActualExpense.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">Sum of itemized categories</p>
+            </FloatingPanel>
+
+            <FloatingPanel>
+              <p className="text-xs font-semibold uppercase text-slate-400">Monthly Savings Surplus</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-emerald-400 font-mono">
+                  ₹{monthlySavings.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-emerald-300">Available for investment & debt</p>
+            </FloatingPanel>
+
+            <FloatingPanel>
+              <p className="text-xs font-semibold uppercase text-slate-400">Savings Rate</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-cyan-300 font-mono">
+                  {savingsRate.toFixed(1)}%
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {savingsRate >= 30 ? "Optimal (>30% of income)" : "Moderate (<30% of income)"}
+              </p>
+            </FloatingPanel>
           </div>
-        </FloatingPanel>
-      </div>
+
+          {/* Income Input Bar */}
+          <FloatingPanel className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                Your Monthly Inflow / Take-Home Income (₹)
+              </label>
+              <p className="text-xs text-slate-400">
+                Update this value to instantly recalculate your savings rate and investment capacity.
+              </p>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-cyan-400">₹</span>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={monthlyIncome}
+                onChange={(e) => setMonthlyIncome(Number(e.target.value))}
+                className="w-full rounded-xl border border-slate-700 bg-slate-900 py-2 pl-8 pr-3 text-sm font-bold text-white outline-none focus:border-cyan-400"
+              />
+            </div>
+          </FloatingPanel>
+
+          {/* Spending Allocation & Budget Variance Breakdown */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            {/* Category Budget Editor Table (7 cols) */}
+            <FloatingPanel className="lg:col-span-7 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-cyan-400" />
+                  Monthly Spending Categories & Budget Variance
+                </h3>
+                <span className={`text-xs font-bold ${budgetVariance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {budgetVariance >= 0 ? `Under Budget (+₹${budgetVariance.toLocaleString("en-IN")})` : `Over Budget (-₹${Math.abs(budgetVariance).toLocaleString("en-IN")})`}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="border-b border-slate-800 bg-slate-800/40 font-bold uppercase text-slate-400">
+                    <tr>
+                      <th className="py-2.5 px-3">Category</th>
+                      <th className="py-2.5 px-3 text-right">Budget (₹)</th>
+                      <th className="py-2.5 px-3 text-right">Actual Spent (₹)</th>
+                      <th className="py-2.5 px-3 text-right">Variance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-medium">
+                    {categories.map((c, i) => {
+                      const diff = c.budgeted - c.actual;
+                      return (
+                        <tr key={c.category} className="hover:bg-slate-800/20 transition">
+                          <td className="py-2.5 px-3 font-semibold text-white">{c.category}</td>
+                          <td className="py-2.5 px-3 text-right">
+                            <input
+                              type="number"
+                              value={c.budgeted}
+                              onChange={(e) => handleCategoryChange(i, "budgeted", Number(e.target.value))}
+                              className="w-24 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs font-mono text-white outline-none focus:border-cyan-400"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <input
+                              type="number"
+                              value={c.actual}
+                              onChange={(e) => handleCategoryChange(i, "actual", Number(e.target.value))}
+                              className="w-24 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-xs font-mono text-cyan-300 outline-none focus:border-cyan-400"
+                            />
+                          </td>
+                          <td className={`py-2.5 px-3 text-right font-mono font-bold ${diff >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                            {diff >= 0 ? "+" : ""}₹{diff.toLocaleString("en-IN")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </FloatingPanel>
+
+            {/* Visual Expense Breakdown Chart (5 cols) */}
+            <FloatingPanel className="lg:col-span-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <PieIcon className="h-4 w-4 text-cyan-400" />
+                  Expense Distribution
+                </h3>
+              </div>
+
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={3}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(val: any) => [`₹${Number(val).toLocaleString("en-IN")}`, "Actual Spent"]}
+                      contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px", fontSize: "11px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                {pieData.map((d) => (
+                  <div key={d.name} className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                    <span className="text-slate-300 truncate">{d.name}</span>
+                  </div>
+                ))}
+              </div>
+            </FloatingPanel>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* BUSINESS / PROPRIETORSHIP MODE (ISOLATED)                           */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {activeMode === "business" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-xs text-cyan-200 space-y-1">
+            <strong>Business Accounting Mode:</strong> This view is designed for proprietorships, consulting practices, or small firms tracking commercial revenue versus operational expenditure.
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FloatingPanel>
+              <span className="text-xs text-slate-400 uppercase font-semibold">Monthly Commercial Turnover</span>
+              <div className="mt-2">
+                <input
+                  type="number"
+                  value={bizTurnover}
+                  onChange={(e) => setBizTurnover(Number(e.target.value))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-lg font-bold text-white outline-none focus:border-cyan-400 font-mono"
+                />
+              </div>
+            </FloatingPanel>
+
+            <FloatingPanel>
+              <span className="text-xs text-slate-400 uppercase font-semibold">Monthly Operating Costs (OPEX)</span>
+              <div className="mt-2">
+                <input
+                  type="number"
+                  value={bizOperatingCost}
+                  onChange={(e) => setBizOperatingCost(Number(e.target.value))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-lg font-bold text-rose-400 outline-none focus:border-cyan-400 font-mono"
+                />
+              </div>
+            </FloatingPanel>
+
+            <FloatingPanel>
+              <span className="text-xs text-slate-400 uppercase font-semibold">Operating Margin / Net Profit</span>
+              <p className="mt-3 text-2xl font-black font-mono text-emerald-400">
+                ₹{(bizTurnover - bizOperatingCost).toLocaleString("en-IN")}
+              </p>
+              <span className="text-[11px] text-slate-400">
+                Margin: {bizTurnover > 0 ? (((bizTurnover - bizOperatingCost) / bizTurnover) * 100).toFixed(1) : 0}%
+              </span>
+            </FloatingPanel>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

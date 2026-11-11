@@ -40,6 +40,10 @@ class AssistantChatRequest(BaseModel):
         default=True,
         description="Whether to stream response tokens via Server-Sent Events (SSE).",
     )
+    fast_mode: bool = Field(
+        default=True,
+        description="When True, delivers instant (<1s) high-precision grounded responses.",
+    )
 
     @field_validator("message")
     @classmethod

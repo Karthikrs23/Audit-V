@@ -105,6 +105,8 @@ class TaxCalculationResult(BaseModel):
   total_tax: Decimal
   effective_tax_rate: float
   monthly_tax_estimate: Decimal
+  net_annual_take_home: Decimal = Decimal("0")
+  net_monthly_take_home: Decimal = Decimal("0")
   slab_breakdown: List[SlabTaxBreakdown]
 
 

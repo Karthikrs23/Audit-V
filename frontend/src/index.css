@@ -62,3 +62,33 @@
   border: 1px solid rgba(6, 182, 212, 0.15);
   box-shadow: 0 0 30px rgba(6, 182, 212, 0.05);
 }
+
+/* ─── Animation utilities ──────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideInFromTop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInFromTop1 {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+.fade-in {
+  animation: fadeIn 0.2s ease;
+}
+.slide-in-from-top-2 {
+  animation: slideInFromTop 0.15s ease;
+}
+.slide-in-from-top-1 {
+  animation: slideInFromTop1 0.2s ease;
+}
+.duration-150 { animation-duration: 0.15s; }
+.duration-200 { animation-duration: 0.2s; }
+

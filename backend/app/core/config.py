@@ -52,13 +52,18 @@ class Settings(BaseSettings):
     HF_API_TOKEN: str | None = None
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
 
-    LLM_MAX_NEW_TOKENS: int = 256
+    LLM_MAX_NEW_TOKENS: int = 300
     LLM_TEMPERATURE: float = 0.2
 
     RAG_TOP_K: int = 5
     RAG_MIN_SIMILARITY_THRESHOLD: float = 0.35
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
+
+    # Market Intelligence & Twelve Data Settings
+    TWELVE_DATA_API_KEY: str | None = None
+    MARKET_CACHE_TTL_SECONDS: int = 60  # 1-minute market update cycle
+    TWELVE_DATA_DAILY_LIMIT: int = 800  # 800 requests/day Twelve Data free tier limit
 
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"

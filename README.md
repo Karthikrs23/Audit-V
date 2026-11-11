@@ -82,6 +82,28 @@ Audit V features a real-time, browser-native Voice Assistant designed for voice-
 
 ---
 
+## 📈 Twelve Data Market Intelligence Integration
+
+Audit V integrates live market data via **Twelve Data API**, delivering 1-minute updates for Indian benchmark indices and watchlist equities while enforcing a daily rate-limit guard.
+
+### Key Architecture Features
+- **1-Minute Update Cycle**: Backend cache TTL is configured to 60 seconds (`update_interval_seconds: 60`). The frontend automatically syncs quotes and market session status every 60 seconds.
+- **800 Requests/Day Quota Guard**: Free tier limit of 800 requests/day is actively tracked in memory (`_daily_requests_used`). When the limit is reached, outgoing API calls are automatically capped to avoid 429 errors and overage charges, seamlessly serving cached or fallback quotes.
+- **Market Dates & Times**: Captures exact exchange trading session dates (`market_date`), timestamps (`datetime`), and session status (`is_market_open`).
+- **Telemetry Endpoints**:
+  - `GET /api/v1/market/quotes`: Retrieves quotes with 1-minute caching, market date, and provider details. Accepts `?force_refresh=true`.
+  - `GET /api/v1/market/telemetry`: Real-time inspection of daily request consumption and remaining quota.
+
+### Configuration
+Add your Twelve Data API key to `backend/.env`:
+```env
+TWELVE_DATA_API_KEY=your_api_key_here
+MARKET_CACHE_TTL_SECONDS=60
+TWELVE_DATA_DAILY_LIMIT=800
+```
+
+---
+
 ## 🚀 Getting Started
 
 ### Backend Setup

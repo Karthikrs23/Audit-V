@@ -5,7 +5,13 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
+  Save,
+  BookmarkCheck,
+  User,
 } from "lucide-react";
+import { apiGetFinancialEntries, apiSaveFinancialEntry } from "../../services/authApi";
+import { useAuth } from "../../context/AuthContext";
+import { calculateIncomeTax } from "../../services/taxApi";
 
 interface SlabBreakdown {
   slab_range: string;
@@ -59,6 +65,67 @@ export default function SalaryPlanner() {
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Personal Space State
+  const { user } = useAuth();
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  // Load user's saved salary numbers on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSavedPlan() {
+      try {
+        const entries = await apiGetFinancialEntries("salary_planner");
+        if (isMounted && entries.length > 0) {
+          const d = entries[0].data as Record<string, unknown>;
+          if (typeof d.annualIncome === "number") setAnnualIncome(d.annualIncome);
+          if (typeof d.age === "number") setAge(d.age);
+          if (typeof d.regime === "string") setRegime(d.regime as "compare" | "new" | "old");
+          if (typeof d.sec80c === "number") setSec80c(d.sec80c);
+          if (typeof d.sec80d === "number") setSec80d(d.sec80d);
+          if (typeof d.sec80ccd === "number") setSec80ccd(d.sec80ccd);
+          if (typeof d.hra === "number") setHra(d.hra);
+          if (typeof d.otherDeductions === "number") setOtherDeductions(d.otherDeductions);
+          setSaveMessage("Restored your saved personal salary plan");
+          setTimeout(() => {
+            if (isMounted) setSaveMessage(null);
+          }, 3500);
+        }
+      } catch (err) {
+        console.warn("Could not load saved salary plan:", err);
+      }
+    }
+    loadSavedPlan();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const saveToPersonalSpace = async () => {
+    setIsSaving(true);
+    try {
+      await apiSaveFinancialEntry("salary_planner", {
+        annualIncome,
+        age,
+        regime,
+        sec80c,
+        sec80d,
+        sec80ccd,
+        hra,
+        otherDeductions,
+        savedAt: new Date().toISOString(),
+      });
+      setSaveMessage("Saved to your personal space ✓");
+      setTimeout(() => setSaveMessage(null), 3500);
+    } catch (err) {
+      console.error("Failed to save to personal space:", err);
+      setSaveMessage("Error saving plan");
+      setTimeout(() => setSaveMessage(null), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const calculateTax = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
@@ -78,19 +145,8 @@ export default function SalaryPlanner() {
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/tax/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.detail || "Validation error in tax calculation input.");
-      }
-
-      const data: TaxApiResponse = await response.json();
-      setTaxData(data);
+      const data = await calculateIncomeTax(payload);
+      setTaxData(data as any);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to connect to Tax API engine.";
       setErrorMsg(message);
@@ -181,17 +237,43 @@ export default function SalaryPlanner() {
       <div className="grid lg:grid-cols-12 gap-6">
         {/* Left Column: Tax Input Form (7 cols) */}
         <FloatingPanel className="lg:col-span-7 space-y-6">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-white/10 pb-4 gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-                Deterministic Tax Engine
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                  Deterministic Tax Engine
+                </p>
+                {user && (
+                  <span className="flex items-center gap-1 rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-[10px] font-semibold text-violet-300">
+                    <User className="h-2.5 w-2.5" />
+                    {user.username}'s Space
+                  </span>
+                )}
+              </div>
               <h2 className="text-xl font-bold text-white mt-1">
                 Salary & Income Tax Calculator
               </h2>
             </div>
-            <div className="p-2.5 rounded-xl border border-white/10 bg-white/5 text-cyan-400">
-              <ReceiptIndianRupee className="h-5 w-5" />
+            <div className="flex items-center gap-2">
+              {saveMessage && (
+                <span className="text-xs font-semibold text-emerald-400 animate-fade-in flex items-center gap-1">
+                  <BookmarkCheck className="h-3.5 w-3.5" />
+                  {saveMessage}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={saveToPersonalSpace}
+                disabled={isSaving}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-400/20 active:scale-95 transition cursor-pointer disabled:opacity-50"
+                title="Save this salary and deduction configuration to your personal space"
+              >
+                <Save className="h-3.5 w-3.5" />
+                <span>{isSaving ? "Saving..." : "Save to Space"}</span>
+              </button>
+              <div className="p-2.5 rounded-xl border border-white/10 bg-white/5 text-cyan-400 shrink-0">
+                <ReceiptIndianRupee className="h-5 w-5" />
+              </div>
             </div>
           </div>
 

@@ -12,8 +12,10 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
 const menuItems = [
   {
@@ -25,6 +27,7 @@ const menuItems = [
     label: "AI Assistant",
     icon: Bot,
     path: "/ai-assistant",
+    shortcut: "M",
   },
   {
     label: "Market Intelligence",
@@ -81,6 +84,7 @@ interface SidebarProps {
 export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <aside
@@ -166,12 +170,80 @@ export default function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
 
               {/* Label */}
               {!collapsed && (
-                <span className="truncate tracking-wide">{item.label}</span>
+                <span className="truncate tracking-wide flex-1">{item.label}</span>
+              )}
+
+              {/* Shortcut badge */}
+              {!collapsed && item.shortcut && (
+                <kbd className="ml-auto rounded border border-cyan-400/20 bg-cyan-950/40 px-1.5 py-0.5 text-[9px] font-mono text-cyan-300">
+                  {item.shortcut}
+                </kbd>
               )}
             </button>
           );
         })}
       </nav>
+
+      {/* =====================================================
+          USER PROFILE & LOGOUT SECTION
+      ====================================================== */}
+      {user && (
+        <div className="shrink-0 border-t border-white/10 p-2.5">
+          {!collapsed ? (
+            <div className="flex items-center justify-between gap-2.5 rounded-xl bg-white/[0.03] border border-white/10 p-2 transition hover:border-cyan-400/20">
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                className="flex items-center gap-2.5 min-w-0 text-left flex-1 group cursor-pointer"
+                title="Go to Settings"
+              >
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-violet-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-[0_0_10px_rgba(6,182,212,0.3)] group-hover:scale-105 transition-transform">
+                  {(user.full_name || user.username).slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-white truncate group-hover:text-cyan-300 transition-colors">
+                    {user.full_name || user.username}
+                  </p>
+                  <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate("/login");
+                }}
+                title="Sign out"
+                className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg transition shrink-0 cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                title={`${user.full_name || user.username} (${user.email})`}
+                className="h-8 w-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-violet-500 flex items-center justify-center text-xs font-bold text-white shadow-[0_0_10px_rgba(6,182,212,0.3)] hover:scale-110 transition-transform cursor-pointer"
+              >
+                {(user.full_name || user.username).slice(0, 2).toUpperCase()}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate("/login");
+                }}
+                title="Sign out"
+                className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg transition cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* =====================================================
           COLLAPSE / EXPAND FOOTER BUTTON

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AssetAllocationItem(BaseModel):
@@ -47,6 +47,16 @@ class InvestmentGuidanceRequest(BaseModel):
         ge=0,
         description="Optional estimated monthly living expenses for emergency fund calculation",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "annual_gross_income" in data and "annual_income" not in data:
+                data["annual_income"] = data["annual_gross_income"]
+            if "tax_regime" in data and "regime" not in data:
+                data["regime"] = data["tax_regime"]
+        return data
 
     @field_validator("risk_profile")
     @classmethod

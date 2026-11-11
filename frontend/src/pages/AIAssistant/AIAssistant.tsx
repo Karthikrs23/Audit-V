@@ -1,23 +1,21 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import FloatingPanel from "../../components/layout/FloatingPanel";
 import {
   Bot,
   Send,
   Sparkles,
-  User,
-  BookOpen,
-  ReceiptIndianRupee,
   AlertCircle,
   HelpCircle,
   AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  Cpu,
   Mic,
   MicOff,
   Volume2,
   VolumeX,
+  Trash2,
+  Zap,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { apiGetChatHistory, apiSaveChatMessage, apiClearChatHistory } from "../../services/authApi";
 
 interface SourceRef {
   title: string;
@@ -59,23 +57,67 @@ const SUGGESTED_QUESTIONS = [
   "Calculate tax for ₹12 lakh annual income.",
 ];
 
+const WELCOME_MSG: ChatMessage = {
+  id: "init",
+  sender: "ai",
+  text: "Hello! I am Audit V, your AI-powered tax compliance, RAG knowledge, and financial advisory assistant. Ask me any question about Indian Income Tax sections, GST rules, or calculate your tax obligations.",
+};
+
 export default function AIAssistant() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "init",
-      sender: "ai",
-      text: "Hello! I am Audit V, your AI-powered tax compliance, RAG knowledge, and financial advisory assistant. Ask me any question about Indian Income Tax sections, GST rules, or calculate your tax obligations.",
-    },
-  ]);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MSG]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [expandedTrails, setExpandedTrails] = useState<Record<string, boolean>>({});
   const [isListening, setIsListening] = useState(false);
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [isFastMode, setIsFastMode] = useState<boolean>(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  const toggleTrail = (msgId: string) => {
-    setExpandedTrails((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
+  // Load persisted chat history for the user on mount
+  useEffect(() => {
+    let cancelled = false;
+    setHistoryLoading(true);
+    apiGetChatHistory(200)
+      .then((history) => {
+        if (cancelled) return;
+        if (history.length === 0) {
+          setMessages([WELCOME_MSG]);
+        } else {
+          const loaded: ChatMessage[] = history.map((m) => ({
+            id: String(m.id),
+            sender: m.role === "user" ? "user" : "ai",
+            text: m.content,
+          }));
+          setMessages([WELCOME_MSG, ...loaded]);
+        }
+      })
+      .catch(() => setMessages([WELCOME_MSG]))
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    return () => { abortControllerRef.current?.abort(); };
+  }, []);
+
+  // Helper: persist a message to the backend silently
+  const persistMessage = useCallback((role: string, content: string) => {
+    apiSaveChatMessage(role, content).catch(() => { /* non-blocking */ });
+  }, []);
+
+  const clearHistory = async () => {
+    await apiClearChatHistory();
+    setMessages([WELCOME_MSG]);
   };
 
   // Text-to-Speech playback for chat message bubbles
@@ -158,8 +200,16 @@ export default function AIAssistant() {
     const messageToSend = queryText || input;
     if (!messageToSend.trim() || loading) return;
 
+    // Abort any ongoing stream
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const userMsgId = Date.now().toString();
     const userMsg: ChatMessage = { id: userMsgId, sender: "user", text: messageToSend };
+    persistMessage("user", messageToSend);
 
     const aiMsgId = (Date.now() + 1).toString();
     const initialAiMsg: ChatMessage = {
@@ -175,10 +225,16 @@ export default function AIAssistant() {
     setErrorMsg(null);
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/assistant/chat", {
+      const apiHost =
+        typeof window !== "undefined" && window.location.hostname === "127.0.0.1"
+          ? "http://127.0.0.1:8000"
+          : "http://localhost:8000";
+
+      const response = await fetch(`${apiHost}/api/v1/assistant/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageToSend, stream: true }),
+        body: JSON.stringify({ message: messageToSend, stream: true, fast_mode: isFastMode }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -193,106 +249,115 @@ export default function AIAssistant() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
+      let currentEvent = "message";
+      let currentData = "";
+
+      const handleSseEvent = (eventName: string, dataStr: string) => {
+        if (!dataStr) return;
+        try {
+          const parsed = JSON.parse(dataStr);
+          if (eventName === "metadata") {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMsgId
+                  ? {
+                      ...msg,
+                      intent: parsed.intent,
+                      sources: parsed.sources || [],
+                      used_tax_engine: parsed.used_tax_engine,
+                      calculation: parsed.calculation,
+                      insufficient_grounding: parsed.insufficient_grounding,
+                      audit_trail: parsed.audit_trail,
+                    }
+                  : msg
+              )
+            );
+          } else if (eventName === "token") {
+            const tokenText = parsed.content ?? "";
+            if (tokenText) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMsgId ? { ...msg, text: msg.text + tokenText } : msg
+                )
+              );
+            }
+          }
+        } catch (e) {
+          console.warn("SSE JSON Parse notice:", e, dataStr);
+        }
+      };
+
+      const processLine = (line: string) => {
+        if (line.endsWith("\r")) {
+          line = line.slice(0, -1);
+        }
+
+        if (line === "") {
+          if (currentData) {
+            handleSseEvent(currentEvent, currentData);
+          }
+          currentEvent = "message";
+          currentData = "";
+          return;
+        }
+
+        if (line.startsWith("event:")) {
+          currentEvent = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          const dataContent = line.slice(5).trimStart();
+          currentData = currentData ? `${currentData}\n${dataContent}` : dataContent;
+        }
+      };
 
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          if (buffer) {
+            processLine(buffer);
+            buffer = "";
+          }
+          if (currentData) {
+            handleSseEvent(currentEvent, currentData);
+          }
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
 
-        for (const part of parts) {
-          const lines = part.split("\n");
-          let eventName = "";
-          let eventData = "";
-
-          for (const line of lines) {
-            if (line.startsWith("event: ")) {
-              eventName = line.replace("event: ", "").trim();
-            } else if (line.startsWith("data: ")) {
-              eventData = line.replace("data: ", "").trim();
-            }
-          }
-
-          if (eventName === "metadata" && eventData) {
-            try {
-              const meta = JSON.parse(eventData);
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === aiMsgId
-                    ? {
-                        ...msg,
-                        intent: meta.intent,
-                        sources: meta.sources || [],
-                        used_tax_engine: meta.used_tax_engine,
-                        calculation: meta.calculation,
-                        insufficient_grounding: meta.insufficient_grounding,
-                        audit_trail: meta.audit_trail,
-                      }
-                    : msg
-                )
-              );
-            } catch (e) {
-              console.error("Error parsing SSE metadata:", e);
-            }
-          } else if (eventName === "token" && eventData) {
-            try {
-              const tokenObj = JSON.parse(eventData);
-              const chunkText = tokenObj.content || "";
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === aiMsgId ? { ...msg, text: msg.text + chunkText } : msg
-                )
-              );
-            } catch (e) {
-              console.error("Error parsing SSE token:", e);
-            }
-          }
+        for (const line of lines) {
+          processLine(line);
         }
       }
 
-      // Finalize streaming flag
+      // Finalize streaming flag, persist AI response, ensure text is not blank
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === aiMsgId ? { ...msg, isStreaming: false } : msg))
+        prev.map((msg) => {
+          if (msg.id === aiMsgId) {
+            const finalText = msg.text.trim()
+              ? msg.text
+              : "Unable to generate the response. The knowledge retrieval completed, but the language model response failed. Please check your query or try again.";
+            persistMessage("assistant", finalText);
+            return { ...msg, text: finalText, isStreaming: false };
+          }
+          return msg;
+        })
       );
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Failed to connect to Audit V Assistant API.";
       setErrorMsg(msg);
-
-      // Local fallback for smooth UI interaction
-      const isCalc = messageToSend.toLowerCase().includes("calculate") || messageToSend.toLowerCase().includes("tax on");
-      const isStock = messageToSend.toLowerCase().includes("stock") || messageToSend.toLowerCase().includes("buy");
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMsgId
             ? {
                 ...m,
-                text: isCalc
-                  ? "Based on the Audit V Tax Engine calculation for your query: For a ₹12,00,000 annual income under Tax Year 2026-27 rules, the New Tax Regime (Section 115BAC, Income Tax Act 1961 — recodified as Section 202 under Income Tax Act 2025) is recommended with total estimated tax of ₹0 (Section 87A / Section 157 full rebate)."
-                  : isStock
-                  ? "Audit V does not recommend specific stock tickers, specific mutual fund scheme names, or buy/sell/hold timing calls. Sound financial planning focuses on broad asset class diversification based on your risk profile."
-                  : `Here is the relevant information regarding "${messageToSend}": Section 80C under the Income Tax Act 1961 (recodified as Section 123 under the Income Tax Act 2025) allows deductions up to ₹1,50,000 per financial year for investments in EPF, PPF, ELSS, and home loan principal repayments under the Old Tax Regime.`,
-                intent: isCalc ? "tax_calculation" : isStock ? "investment_guidance" : "tax_information",
-                used_tax_engine: isCalc,
-                sources: [
-                  {
-                    title: isCalc ? "Tax Calculation Rules" : "Section 80C Deductions",
-                    category: "income_tax",
-                    topic: isCalc ? "Tax Calculation" : "Section 80C",
-                    source: "Income Tax Department, Government of India (Income Tax Act 1961 & Income Tax Act 2025)",
-                    similarity_score: 0.92,
-                  },
-                ],
-                audit_trail: {
-                  intent: isCalc ? "tax_calculation" : isStock ? "investment_guidance" : "tax_information",
-                  tax_engine_invoked: isCalc,
-                  tax_engine_summary: isCalc ? { gross_income: 1200000, taxable_income: 1125000, recommended_regime: "New Tax Regime (Section 115BAC, recodified as Section 202 under IT Act 2025)", total_tax: 0, potential_savings: 52500 } : undefined,
-                  rag_invoked: true,
-                  retrieved_sources_count: 1,
-                  guardrail_triggered: isStock,
-                  processing_time_ms: 12.5,
-                },
+                text: m.text.trim()
+                  ? m.text
+                  : "Unable to generate the response. An error occurred while communicating with the assistant service.",
                 isStreaming: false,
               }
             : m
@@ -300,26 +365,65 @@ export default function AIAssistant() {
       );
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
+  // User initials for chat avatar
+  const userInitials = user
+    ? (user.full_name ?? user.username).split(" ").map((w) => w[0]?.toUpperCase()).slice(0, 2).join("")
+    : "U";
+
   return (
-    <FloatingPanel className="h-[calc(100vh-170px)] flex flex-col justify-between !p-6 relative">
+    <FloatingPanel className="h-[calc(100vh-105px)] flex flex-col justify-between !p-5 sm:!p-6 relative">
       {/* Header Bar */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="p-3 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
-            <Bot className="h-6 w-6" />
+          <div className="p-2.5 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+            <Bot className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-lg font-extrabold text-white tracking-tight">
+            <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
               Audit V Intelligence Assistant
             </h2>
-            <p className="text-xs text-cyan-400 flex items-center gap-1.5 font-medium">
-              <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-              Real-Time SSE Streaming & Grounded RAG Knowledge
+            <p className="text-[11px] sm:text-xs text-cyan-400 flex items-center gap-1.5 font-medium">
+              <Sparkles className="h-3 w-3 animate-pulse" />
+              {historyLoading ? "Loading your chat history…" : "Real-Time SSE Streaming & Grounded RAG Knowledge"}
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Quick Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsFastMode((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+              isFastMode
+                ? "bg-amber-400/10 text-amber-300 border-amber-400/30 shadow-[0_0_12px_rgba(251,191,36,0.15)]"
+                : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+            }`}
+            title={
+              isFastMode
+                ? "Quick Mode: grounded answer from verified sources"
+                : "AI-generated by fine-tuned Qwen2.5-3B"
+            }
+          >
+            <Zap className={`h-3.5 w-3.5 ${isFastMode ? "text-amber-400 fill-amber-400" : ""}`} />
+            <span>{isFastMode ? "Quick Mode: grounded answer from verified sources" : "AI-generated by fine-tuned Qwen2.5-3B"}</span>
+          </button>
+
+          {/* Clear history button */}
+          {messages.length > 1 && !loading && (
+            <button
+              type="button"
+              onClick={clearHistory}
+              title="Clear your chat history"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-slate-400 border border-white/10 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition cursor-pointer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -330,12 +434,12 @@ export default function AIAssistant() {
         </div>
       )}
 
-      {/* Chat Feed */}
-      <div className="flex-1 overflow-y-auto py-5 space-y-5 pr-2 custom-scrollbar">
+      {/* Chat Feed - Maximized Vertical Area */}
+      <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-2 custom-scrollbar">
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`flex items-start gap-3.5 max-w-3xl ${
+            className={`flex items-start gap-3.5 max-w-5xl ${
               m.sender === "user" ? "ml-auto flex-row-reverse" : ""
             }`}
           >
@@ -347,11 +451,15 @@ export default function AIAssistant() {
                   : "border border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
               }`}
             >
-              {m.sender === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+              {m.sender === "user" ? (
+                <span className="text-[11px] font-black">{userInitials}</span>
+              ) : (
+                <Bot className="h-4 w-4" />
+              )}
             </div>
 
             {/* Message Bubble */}
-            <div className="space-y-3 max-w-2xl">
+            <div className="space-y-3 max-w-4xl w-full">
               <div
                 className={`p-4 rounded-2xl text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-lg ${
                   m.sender === "user"
@@ -359,8 +467,21 @@ export default function AIAssistant() {
                     : "bg-black/50 border border-white/10 text-slate-200"
                 }`}
               >
-                {m.text}
-                {m.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-cyan-400 animate-pulse rounded-full" />}
+                {m.text ? (
+                  <>
+                    {m.text}
+                    {m.isStreaming && (
+                      <span className="inline-block w-1.5 h-4 ml-1 bg-cyan-400 animate-pulse rounded-full align-middle" />
+                    )}
+                  </>
+                ) : m.isStreaming ? (
+                  <span className="text-slate-400 italic flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 bg-cyan-400 rounded-full animate-ping" />
+                    Analyzing tax regulations & preparing response...
+                  </span>
+                ) : (
+                  <span className="text-slate-400 italic">No response content received. Please try again.</span>
+                )}
 
                 {m.sender === "ai" && m.text && !m.isStreaming && (
                   <div className="flex items-center justify-end gap-2 mt-2 pt-1.5 border-t border-white/5">
@@ -386,123 +507,11 @@ export default function AIAssistant() {
                 )}
               </div>
 
-              {/* Insufficient Grounding Warning Badge */}
-              {m.insufficient_grounding && (
+              {/* Insufficient Grounding Warning (only when confidence is extremely low and no answer was generated) */}
+              {m.insufficient_grounding && !m.text && (
                 <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-400/30 bg-amber-400/10 text-amber-300 text-xs font-medium">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>Low Retrieval Confidence: Query similarity fell below authoritative grounding threshold.</span>
-                </div>
-              )}
-
-              {/* Tax Engine Calculation Summary Card */}
-              {m.used_tax_engine && m.calculation && (
-                <div className="p-4 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 text-xs space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-cyan-300">
-                    <ReceiptIndianRupee className="h-4 w-4" />
-                    <span>Deterministic Tax Calculation Result</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-slate-200 pt-1">
-                    <div>Gross Income: <strong className="text-white">₹{Number(m.calculation.selected_result?.gross_income || 0).toLocaleString()}</strong></div>
-                    <div>Estimated Tax: <strong className="text-cyan-300">₹{Number(m.calculation.selected_result?.total_tax || 0).toLocaleString()}</strong></div>
-                  </div>
-                </div>
-              )}
-
-              {/* RAG Source References */}
-              {m.sources && m.sources.length > 0 && (
-                <div className="p-3.5 rounded-xl border border-white/10 bg-white/[0.02] space-y-2">
-                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    <BookOpen className="h-3.5 w-3.5 text-cyan-400" />
-                    <span>Grounded Knowledge Sources ({m.sources.length} Documents)</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {m.sources.map((src, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-2.5 py-1 text-[11px] font-medium text-cyan-300"
-                      >
-                        <span>{src.title}</span>
-                        {src.similarity_score !== undefined && (
-                          <span className="rounded bg-cyan-400/20 px-1 py-0.5 text-[10px] text-cyan-200 font-bold">
-                            {Math.round(src.similarity_score * 100)}% match
-                          </span>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Collapsed/Expandable "How this answer was generated" Stepper Section */}
-              {m.sender === "ai" && !m.isStreaming && (
-                <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-2.5 text-xs transition">
-                  <button
-                    type="button"
-                    onClick={() => toggleTrail(m.id)}
-                    className="flex items-center justify-between w-full font-semibold text-cyan-300 hover:text-white transition text-[11px]"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Cpu className="h-3.5 w-3.5 text-cyan-400" />
-                      How this answer was generated
-                    </span>
-                    <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-cyan-400/10 px-2 py-0.5 rounded font-mono">
-                      {m.audit_trail?.processing_time_ms ? `Routing: ${m.audit_trail.processing_time_ms} ms` : "Audit Trail"}
-                      {expandedTrails[m.id] ? <ChevronDown className="h-3 w-3 ml-0.5 text-cyan-300" /> : <ChevronRight className="h-3 w-3 ml-0.5 text-slate-400" />}
-                    </span>
-                  </button>
-
-                  {expandedTrails[m.id] && (
-                    <div className="mt-3 pt-2.5 border-t border-cyan-400/15 space-y-2.5">
-                      {/* Step Sequence Stepper */}
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
-                        {/* Step 1: Intent */}
-                        <div className="p-2 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">1. Intent</span>
-                          <span className="font-mono text-cyan-300 font-bold block truncate">{m.audit_trail?.intent || m.intent || "general_qa"}</span>
-                        </div>
-
-                        {/* Step 2: Tax Engine */}
-                        <div className="p-2 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">2. Tax Engine</span>
-                          <span className={`font-bold block ${m.audit_trail?.tax_engine_invoked || m.used_tax_engine ? "text-emerald-400" : "text-slate-400"}`}>
-                            {m.audit_trail?.tax_engine_invoked || m.used_tax_engine ? "Invoked (115BAC)" : "Bypassed"}
-                          </span>
-                        </div>
-
-                        {/* Step 3: RAG Search */}
-                        <div className="p-2 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">3. RAG Search</span>
-                          <span className="font-bold text-cyan-300 block">
-                            {m.sources && m.sources.length > 0 ? `Retrieved (${m.sources.length} docs)` : "None"}
-                          </span>
-                        </div>
-
-                        {/* Step 4: Guardrail */}
-                        <div className="p-2 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">4. Guardrails</span>
-                          <span className={`font-bold block ${m.audit_trail?.guardrail_triggered ? "text-amber-400" : "text-emerald-400"}`}>
-                            {m.audit_trail?.guardrail_triggered ? "Triggered (SEBI)" : "Passed (Safe)"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Tax Engine Summary payload if present */}
-                      {m.audit_trail?.tax_engine_summary && (
-                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-slate-300 flex flex-wrap gap-x-4 gap-y-1 justify-between items-center">
-                          <span>Gross Income: <strong className="text-white">₹{m.audit_trail.tax_engine_summary.gross_income?.toLocaleString()}</strong></span>
-                          <span>Taxable: <strong className="text-white">₹{m.audit_trail.tax_engine_summary.taxable_income?.toLocaleString()}</strong></span>
-                          <span>Regime: <strong className="text-emerald-300">{m.audit_trail.tax_engine_summary.recommended_regime}</strong></span>
-                          <span>Total Tax: <strong className="text-cyan-300">₹{m.audit_trail.tax_engine_summary.total_tax?.toLocaleString()}</strong></span>
-                        </div>
-                      )}
-
-                      {/* Latency Breakdown Explanation Note */}
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
-                        <span>⚡ <strong>Pipeline Routing Latency</strong>: {m.audit_trail?.processing_time_ms} ms (Pre-processing, Intent Routing & RAG Search)</span>
-                        <span className="text-cyan-300">SSE Token Streaming Active</span>
-                      </div>
-                    </div>
-                  )}
+                  <span>I need more details or verified statutory context to answer this query reliably.</span>
                 </div>
               )}
             </div>
@@ -515,6 +524,7 @@ export default function AIAssistant() {
             <span>Audit V RAG Engine initializing stream & computing tax rules...</span>
           </div>
         )}
+        <div ref={chatEndRef} />
       </div>
 
       {/* Suggested Prompt Chips */}
@@ -524,8 +534,9 @@ export default function AIAssistant() {
           <button
             key={q}
             type="button"
+            disabled={loading}
             onClick={() => sendMessage(q)}
-            className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-xs text-slate-300 hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-300 transition"
+            className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-xs text-slate-300 hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-300 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {q}
           </button>
@@ -536,12 +547,15 @@ export default function AIAssistant() {
       <div className="shrink-0 pt-2">
         <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/60 p-2.5 focus-within:border-cyan-400/40">
           <input
+            ref={inputRef}
+            id="ai-assistant-chat-input"
             type="text"
-            placeholder="Ask Audit V about Section 80C, GST rules, or calculate tax..."
+            placeholder={loading ? "Generating response..." : "Ask Audit V about Section 80C, GST rules, or calculate tax (Press M to focus)..."}
             value={input}
+            disabled={loading}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            className="flex-1 bg-transparent text-xs sm:text-sm text-white outline-none placeholder:text-slate-500"
+            onKeyDown={(e) => e.key === "Enter" && !loading && sendMessage()}
+            className="flex-1 bg-transparent text-xs sm:text-sm text-white outline-none placeholder:text-slate-500 disabled:opacity-50"
           />
 
           <button

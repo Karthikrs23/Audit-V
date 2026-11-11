@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit-V Live Database Storage Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 24, 38, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.25);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --badge-bg: rgba(59, 130, 246, 0.15);
+      --badge-text: #60a5fa;
+      --table-header: #1e293b;
+      --table-row-hover: rgba(59, 130, 246, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at top right, #1e1b4b 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+    .logo-group h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #10b981;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .stat-card:hover, .stat-card.active {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px var(--accent-glow);
+    }
+    .stat-card h3 {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+    .stat-card .count {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      gap: 1rem;
+    }
+    .search-input {
+      background: rgba(18, 24, 38, 0.9);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      color: #fff;
+      font-family: inherit;
+      width: 320px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+    }
+    .table-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .table-wrapper {
+      overflow-x: auto;
+      max-height: 65vh;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    th {
+      background: var(--table-header);
+      padding: 0.85rem 1rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: var(--text);
+      vertical-align: top;
+      max-width: 450px;
+      word-break: break-word;
+    }
+    tr:hover td {
+      background: var(--table-row-hover);
+    }
+    .json-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      background: rgba(0,0,0,0.4);
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      display: inline-block;
+      max-height: 120px;
+      overflow-y: auto;
+      color: #93c5fd;
+    }
+    .role-badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .role-user { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .role-assistant { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-group">
+        <h1>Audit-V Live Database Storage</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.35rem;">File: <code>audit_v_users.db</code> (SQLite)</p>
+      </div>
+      <div class="status-badge">
+        <span class="pulse-dot"></span>
+        Live SQLite Database
+      </div>
+    </header>
+
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="controls">
+      <h2 id="activeTableTitle" style="font-size: 1.25rem; font-weight: 600;">Table Data</h2>
+      <input type="text" id="searchInput" class="search-input" placeholder="Filter rows in current table...">
+    </div>
+
+    <div class="table-section">
+      <div class="table-wrapper">
+        <table id="dataTable">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const data = {"user_chat_messages": {"columns": ["id", "user_id", "role", "content", "timestamp"], "rows": [{"id": 1, "user_id": 1, "role": "user", "content": "Calculate tax for 12 LPA", "timestamp": "2026-10-16 07:59:38.265391"}, {"id": 8, "user_id": 5, "role": "user", "content": "How do I save tax under Section 80C?", "timestamp": "2026-10-17 06:24:05.410115"}, {"id": 9, "user_id": 3, "role": "user", "content": "hello ", "timestamp": "2026-10-28 16:31:09.303805"}, {"id": 10, "user_id": 3, "role": "assistant", "content": "**Equity vs Debt vs Gold Asset Class Comparison**\n\nUnderstanding asset classes is foundational to wealth management. 1. Equity: High risk, high potential return (12-15% historical CAGR). Equities represent ownership in businesses and offer long-term capital appreciation and inflation-hedging capabilities. 2. Debt / Fixed Income: Low to moderate risk, steady returns (6-8% p.a.). Includes PPF, bank FDs, and debt mutual funds designed for capital preservation and income stability. 3.\n\n---\n\n**Essential Financial and Tax Terminology**\n\nan investment over a period longer than one year.", "timestamp": "2026-10-28 16:31:10.429884"}, {"id": 11, "user_id": 3, "role": "assistant", "content": "**Equity vs Debt vs Gold Asset Class Comparison**\n\nUnderstanding asset classes is foundational to wealth management. 1. Equity: High risk, high potential return (12-15% historical CAGR). Equities represent ownership in businesses and offer long-term capital appreciation and inflation-hedging capabilities. 2. Debt / Fixed Income: Low to moderate risk, steady returns (6-8% p.a.). Includes PPF, bank FDs, and debt mutual funds designed for capital preservation and income stability. 3.\n\n---\n\n**Essential Financial and Tax Terminology**\n\nan investment over a period longer than one year.", "timestamp": "2026-10-28 16:31:10.432964"}]}, "user_documents": {"columns": ["id", "user_id", "filename", "file_type", "notes", "created_at"], "rows": [{"id": 1, "user_id": 1, "filename": "My_Form16.pdf", "file_type": "Form 16", "notes": "Uploaded proof", "created_at": "2026-10-16 13:39:44.687002"}]}, "user_financial_entries": {"columns": ["id", "user_id", "category", "data", "created_at", "updated_at"], "rows": [{"id": 1, "user_id": 1, "category": "salary_planner", "data": {"annualIncome": 1800000, "sec80c": 150000}, "created_at": "2026-10-16 13:39:44.718456", "updated_at": "2026-10-16 13:39:44.718461"}]}, "user_settings": {"columns": ["id", "user_id", "api_url", "hf_model", "hf_adapter", "similarity_threshold"], "rows": [{"id": 1, "user_id": 1, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.85"}, {"id": 2, "user_id": 2, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.35"}, {"id": 3, "user_id": 3, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.35"}, {"id": 4, "user_id": 4, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.35"}, {"id": 5, "user_id": 5, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.75"}, {"id": 6, "user_id": 6, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.35"}, {"id": 7, "user_id": 7, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.75"}, {"id": 8, "user_id": 8, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.35"}, {"id": 9, "user_id": 9, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.35"}, {"id": 10, "user_id": 10, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.75"}, {"id": 11, "user_id": 11, "api_url": "http://localhost:8000", "hf_model": "Qwen/Qwen2.5-3B-Instruct", "hf_adapter": "peterrs23/audit-v-qwen-3b", "similarity_threshold": "0.35"}]}, "users": {"columns": ["id", "username", "email", "full_name", "hashed_password", "created_at"], "rows": [{"id": 1, "username": "testuser1", "email": "test1@example.com", "full_name": "Test User", "hashed_password": "$2b$12$Oy9cm...", "created_at": "2026-10-16 07:58:57.941033"}, {"id": 2, "username": "karthik_live", "email": "karthik_live@example.com", "full_name": "Karthik R S", "hashed_password": "$2b$12$OhOmk...", "created_at": "2026-10-16 13:47:13.120887"}, {"id": 3, "username": "karthik_rs", "email": "k02246820@gmail.com", "full_name": "Karthik R S Heggadihally", "hashed_password": "$2b$12$/i2Ht...", "created_at": "2026-10-16 13:53:08.155571"}, {"id": 4, "username": "testuser_67b57cfd", "email": "test_67b57cfd@auditv.internal", "full_name": "Test User", "hashed_password": "$2b$12$zEJif...", "created_at": "2026-10-17 06:24:04.715278"}, {"id": 5, "username": "chattester_c2d7f7c7", "email": "chat_c2d7f7c7@auditv.internal", "full_name": null, "hashed_password": "$2b$12$cEQ0N...", "created_at": "2026-10-17 06:24:05.364697"}, {"id": 6, "username": "testuser_3b509347", "email": "test_3b509347@auditv.internal", "full_name": "Test User", "hashed_password": "$2b$12$sswMf...", "created_at": "2026-10-17 06:24:28.165615"}, {"id": 7, "username": "chattester_ec8ee222", "email": "chat_ec8ee222@auditv.internal", "full_name": null, "hashed_password": "$2b$12$Cy46a...", "created_at": "2026-10-17 06:24:28.835830"}, {"id": 8, "username": "finuser_7d7dbb1b", "email": "fin_7d7dbb1b@auditv.internal", "full_name": null, "hashed_password": "$2b$12$tN1W0...", "created_at": "2026-10-17 06:24:29.120113"}, {"id": 9, "username": "testuser_08cd0f93", "email": "test_08cd0f93@auditv.internal", "full_name": "Test User", "hashed_password": "$2b$12$.SIGH...", "created_at": "2026-10-17 06:25:26.938941"}, {"id": 10, "username": "chattester_5f136594", "email": "chat_5f136594@auditv.internal", "full_name": null, "hashed_password": "$2b$12$49f/U...", "created_at": "2026-10-17 06:25:28.117451"}, {"id": 11, "username": "finuser_796e7d0f", "email": "fin_796e7d0f@auditv.internal", "full_name": null, "hashed_password": "$2b$12$q.7nl...", "created_at": "2026-10-17 06:25:28.606518"}]}};
+    const tableNames = Object.keys(data);
+    let currentTable = tableNames.includes('users') ? 'users' : tableNames[0];
+
+    function renderStats() {
+      const grid = document.getElementById('statsGrid');
+      grid.innerHTML = '';
+      tableNames.forEach(t => {
+        const card = document.createElement('div');
+        card.className = `stat-card ${t === currentTable ? 'active' : ''}`;
+        card.innerHTML = `<h3>${t}</h3><div class="count">${data[t].rows.length}</div>`;
+        card.onclick = () => {
+          currentTable = t;
+          document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          renderTable();
+        };
+        grid.appendChild(card);
+      });
+    }
+
+    function renderTable() {
+      const tData = data[currentTable];
+      document.getElementById('activeTableTitle').innerText = `${currentTable} (${tData.rows.length} rows)`;
+      const thead = document.getElementById('tableHead');
+      const tbody = document.getElementById('tableBody');
+      const query = document.getElementById('searchInput').value.toLowerCase();
+
+      thead.innerHTML = '<tr>' + tData.columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+      
+      const filtered = tData.rows.filter(row => {
+        if (!query) return true;
+        return Object.values(row).some(v => String(v).toLowerCase().includes(query));
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${tData.columns.length}" style="text-align:center; padding: 2rem; color: #9ca3af;">No records found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(row => {
+        return '<tr>' + tData.columns.map(c => {
+          let val = row[c];
+          if (c === 'role') {
+            return `<td><span class="role-badge role-${val}">${val}</span></td>`;
+          }
+          if (c === 'data' || typeof val === 'object') {
+            return `<td><pre class="json-code">${JSON.stringify(val, null, 2)}</pre></td>`;
+          }
+          if (c === 'content' && typeof val === 'string' && val.length > 80) {
+            return `<td><div style="max-height: 120px; overflow-y: auto; white-space: pre-wrap;">${val}</div></td>`;
+          }
+          return `<td>${val !== null ? val : '<span style="color:#6b7280">null</span>'}</td>`;
+        }).join('') + '</tr>';
+      }).join('');
+    }
+
+    document.getElementById('searchInput').addEventListener('input', renderTable);
+    renderStats();
+    renderTable();
+  </script>
+</body>
+</html>

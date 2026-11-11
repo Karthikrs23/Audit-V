@@ -68,6 +68,9 @@ class TextChunker:
 
             chunk_text_clean = chunk_text.strip()
             if chunk_text_clean:
+                if len(chunk_text_clean) < 120 and chunks:
+                    chunks[-1]["content"] += " " + chunk_text_clean
+                    break
                 full_content = f"{header_prefix}{chunk_text_clean}"
                 chunk_id = self._generate_chunk_id(doc_topic, full_content, chunk_idx)
                 chunks.append(

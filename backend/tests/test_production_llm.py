@@ -12,7 +12,7 @@ def test_settings_configuration():
     settings = get_settings()
     assert settings.HF_MODEL_NAME == "Qwen/Qwen2.5-3B-Instruct"
     assert settings.HF_ADAPTER_REPO == "peterrs23/audit-v-qwen-3b"
-    assert settings.LLM_MAX_NEW_TOKENS == 256
+    assert settings.LLM_MAX_NEW_TOKENS == 300
     assert settings.LLM_TEMPERATURE == 0.2
     assert settings.RAG_MIN_SIMILARITY_THRESHOLD == 0.35
 
@@ -120,7 +120,55 @@ def test_mocked_qwen_generation():
         response = llm_service.generate_explanation(
             query="What is Section 80C?",
             context_chunks=[{"content": "Section 80C info", "metadata": {"title": "Section 80C"}}],
+            fast_mode=False,
         )
 
         assert "Section 80C" in response
         assert mock_model.generate.called
+
+
+def test_sebi_guardrail_pre_generation_intercept():
+    """Verify is_sebi_intercept_query intercepts all 6 required user prompts."""
+    from app.services.llm_service import is_sebi_intercept_query
+
+    critical_queries = [
+        "Which stock should I buy right now: Reliance or Tata Motors?",
+        "is Reliance a buy",
+        "suggest a mutual fund for me",
+        "should I invest in crypto today",
+        "what will TCS stock do next month",
+        "what is a good stock to buy",
+    ]
+    for q in critical_queries:
+        assert is_sebi_intercept_query(q) is True, f"Failed to intercept query: '{q}'"
+
+
+def test_sebi_guardrail_post_generation_adversarial_strings():
+    """Verify check_sebi_compliance_violation catches adversarial model outputs."""
+    from app.services.llm_service import check_sebi_compliance_violation
+
+    adversarial_outputs = [
+        "Tata Motors appears to be a better buy compared to Reliance",
+        "TCS is a strong buy with target price of 4500",
+        "You should invest in Infosys shares right now for strong upside",
+        "NIFTY will outperform, buy call options",
+        "Reliance is undervalued and you should buy it before next earnings",
+        "Between Tata Motors and RIL, Tatamotors is a better buy",
+    ]
+    for adv in adversarial_outputs:
+        assert check_sebi_compliance_violation(adv) is True, f"Failed to detect violation in: '{adv}'"
+
+
+def test_sebi_guardrail_non_violation_queries():
+    """Verify normal tax/financial questions are NOT intercepted or falsely flagged."""
+    from app.services.llm_service import check_sebi_compliance_violation, is_sebi_intercept_query
+
+    safe_queries = [
+        "Calculate tax for 12 lakh annual income",
+        "What is Section 80C and what are its deduction limits?",
+        "How does GST registration work for software exports?",
+        "What is the difference between old and new tax regime?",
+    ]
+    for sq in safe_queries:
+        assert is_sebi_intercept_query(sq) is False
+        assert check_sebi_compliance_violation(sq) is False

@@ -37,6 +37,21 @@ def test_basic_salary_new_regime():
     assert res.total_tax == Decimal("0")
     assert res.effective_tax_rate == 0.0
     assert res.monthly_tax_estimate == Decimal("0")
+    assert res.net_annual_take_home == Decimal("1200000")
+    assert str(res.net_annual_take_home) == "1200000"
+    assert "999.99" not in str(res.net_annual_take_home)
+
+
+def test_net_take_home_exact_decimal_no_float_artifacts():
+    """Verify net take-home for Rs 12,00,000 is exactly Decimal('1200000') with zero cents/decimals."""
+    req = TaxCalculationRequest(annual_income=Decimal("1200000"), is_salaried=True, regime="new")
+    resp = compute_tax(req)
+    selected = resp.selected_result
+    assert selected.total_tax == Decimal("0")
+    assert selected.net_annual_take_home == Decimal("1200000")
+    assert str(selected.net_annual_take_home) == "1200000"
+    assert "999.99" not in str(selected.net_annual_take_home)
+    assert not str(selected.net_annual_take_home).endswith(".99")
 
 
 def test_zero_income():

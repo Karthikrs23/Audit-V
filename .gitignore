@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+backend/logs/
+.pytest_cache/
+.venv/
+venv/
+backend/venv/
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Local databases & environment secrets
+*.db
+*.sqlite3
+.env
+.env.*
+
+# Temporary Archives & Scratch
+scratch/
+*.zip
+
+# Chroma & Heavy local model checkpoints
+models/chroma/
+backend/models/chroma/
+models/audit_v_qwen_lora/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

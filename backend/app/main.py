@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.databace.database import Base, engine
 
 settings = get_settings()
 logger = configure_logging()
@@ -23,7 +24,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,7 +79,11 @@ def root() -> dict[str, str]:
 
 @app.on_event("startup")
 def startup_event() -> None:
-    """Initialize runtime logging and startup diagnostics."""
+    """Initialize runtime logging, create DB tables, and startup diagnostics."""
+    # Create all SQLite tables for user auth & personal data storage
+    import app.databace.models  # noqa: F401 – ensures models are registered
+    Base.metadata.create_all(bind=engine)
+
     logger.info(
         "Audit V API startup complete",
         extra={
@@ -78,3 +91,10 @@ def startup_event() -> None:
             "debug": settings.DEBUG,
         },
     )
+
+    # Pre-warm Qwen LLM model asynchronously in background thread
+    import threading
+    from app.services.llm_service import warmup_model
+
+    threading.Thread(target=warmup_model, daemon=True).start()
+

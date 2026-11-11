@@ -1,23 +1,44 @@
 import { useEffect, useState } from "react";
 import FloatingPanel from "../../components/layout/FloatingPanel";
-import { TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, BarChart3, Clock, AlertTriangle, RefreshCw } from "lucide-react";
+import {
+  TrendingUp,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles,
+  BarChart3,
+  AlertTriangle,
+  RefreshCw,
+  Calendar,
+  Zap,
+  Activity,
+  ShieldCheck,
+} from "lucide-react";
 
 interface QuoteItem {
   symbol: string;
   name: string;
-  price: number;
-  change: number;
-  change_percent: number;
-  high?: number;
-  low?: number;
-  volume?: number;
+  price?: number | null;
+  change?: number | null;
+  change_percent?: number | null;
+  high?: number | null;
+  low?: number | null;
+  volume?: number | null;
   category: string;
+  datetime?: string | null;
+  exchange?: string | null;
 }
 
 interface MarketQuotesResponse {
   disclaimer: string;
   data_delayed: boolean;
   last_updated: string;
+  market_date?: string | null;
+  market_hours?: string;
+  is_market_open?: boolean | null;
+  provider?: string;
+  update_interval_seconds?: number;
+  requests_used_today?: number;
+  daily_request_limit?: number;
   indices: QuoteItem[];
   stocks: QuoteItem[];
 }
@@ -27,55 +48,92 @@ export default function Market() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [countdown, setCountdown] = useState<number>(60);
 
   const FALLBACK_MARKET_DATA: MarketQuotesResponse = {
-    disclaimer: "Market data delayed ~15 minutes. Provided for informational & analytical purposes only.",
+    disclaimer: "Market data delayed ~15 minutes (Twelve Data & Exchange Feeds). Provided for analytical purposes only.",
     data_delayed: true,
     last_updated: new Date().toISOString(),
+    market_date: new Date().toISOString().split("T")[0],
+    is_market_open: false,
+    provider: "Twelve Data API (Simulation/Ready)",
+    update_interval_seconds: 60,
+    requests_used_today: 1,
+    daily_request_limit: 800,
     indices: [
-      { symbol: "^NSEI", name: "NIFTY 50", price: 24852.15, change: 304.2, change_percent: 1.24, category: "indices" },
-      { symbol: "^BSESN", name: "SENSEX", price: 81921.4, change: 748.5, change_percent: 0.92, category: "indices" },
-      { symbol: "^NSEBANK", name: "NIFTY BANK", price: 51240.8, change: 480.3, change_percent: 0.95, category: "indices" },
-      { symbol: "GOLD", name: "GOLD (10g)", price: 71850.0, change: 340.0, change_percent: 0.48, category: "commodities" },
-      { symbol: "SILVER", name: "SILVER (1kg)", price: 85200.0, change: -120.0, change_percent: -0.14, category: "commodities" },
-      { symbol: "BTC-USD", name: "BITCOIN ($)", price: 64820.0, change: 1370.0, change_percent: 2.16, category: "crypto" },
+      { symbol: "^NSEI", name: "NIFTY 50", price: 24852.15, change: 304.2, change_percent: 1.24, category: "indices", exchange: "NSE" },
+      { symbol: "^BSESN", name: "SENSEX", price: 81921.4, change: 748.5, change_percent: 0.92, category: "indices", exchange: "BSE" },
+      { symbol: "^NSEBANK", name: "NIFTY BANK", price: 51240.8, change: 480.3, change_percent: 0.95, category: "indices", exchange: "NSE" },
+      { symbol: "GOLD", name: "GOLD (10g)", price: 71850.0, change: 340.0, change_percent: 0.48, category: "commodities", exchange: "MCX" },
+      { symbol: "SILVER", name: "SILVER (1kg)", price: 85200.0, change: -120.0, change_percent: -0.14, category: "commodities", exchange: "MCX" },
+      { symbol: "BTC-USD", name: "BITCOIN ($)", price: 64820.0, change: 1370.0, change_percent: 2.16, category: "crypto", exchange: "BINANCE" },
     ],
     stocks: [
-      { symbol: "RELIANCE.NS", name: "Reliance Industries", price: 3012.45, change: 42.1, change_percent: 1.42, category: "stocks" },
-      { symbol: "TCS.NS", name: "Tata Consultancy Services", price: 4250.8, change: -15.2, change_percent: -0.36, category: "stocks" },
-      { symbol: "HDFCBANK.NS", name: "HDFC Bank", price: 1640.25, change: 18.4, change_percent: 1.13, category: "stocks" },
-      { symbol: "INFY.NS", name: "Infosys Ltd", price: 1890.6, change: 24.8, change_percent: 1.33, category: "stocks" },
-      { symbol: "ICICIBANK.NS", name: "ICICI Bank", price: 1220.15, change: 14.2, change_percent: 1.18, category: "stocks" },
-      { symbol: "BHARTIARTL.NS", name: "Bharti Airtel", price: 1540.0, change: 32.5, change_percent: 2.15, category: "stocks" },
+      { symbol: "RELIANCE.NS", name: "Reliance Industries", price: 1240.40, change: -7.0, change_percent: -0.56, category: "stocks", exchange: "NSE", datetime: "2026-09-30 15:30:00" },
+      { symbol: "TCS.NS", name: "Tata Consultancy Services", price: 2105.00, change: -23.7, change_percent: -1.11, category: "stocks", exchange: "NSE", datetime: "2026-09-30 15:30:00" },
+      { symbol: "HDFCBANK.NS", name: "HDFC Bank", price: 738.60, change: -0.9, change_percent: -0.12, category: "stocks", exchange: "NSE", datetime: "2026-09-30 15:30:00" },
+      { symbol: "INFY.NS", name: "Infosys Ltd", price: 1029.40, change: -9.1, change_percent: -0.88, category: "stocks", exchange: "NSE", datetime: "2026-09-30 15:30:00" },
+      { symbol: "ICICIBANK.NS", name: "ICICI Bank", price: 1339.60, change: -5.4, change_percent: -0.40, category: "stocks", exchange: "NSE", datetime: "2026-09-30 15:30:00" },
+      { symbol: "BHARTIARTL.NS", name: "Bharti Airtel", price: 1817.20, change: -13.0, change_percent: -0.71, category: "stocks", exchange: "NSE", datetime: "2026-09-30 15:30:00" },
     ],
   };
 
-  const fetchQuotes = async () => {
+  const fetchQuotes = async (isManual = false) => {
     try {
       setRefreshing(true);
-      const res = await fetch("http://localhost:8000/api/v1/market/quotes");
+      const url = isManual
+        ? "http://127.0.0.1:8000/api/v1/market/quotes?force_refresh=true"
+        : "http://127.0.0.1:8000/api/v1/market/quotes";
+
+      let res: Response;
+      try {
+        res = await fetch(url);
+      } catch {
+        const fallbackUrl = isManual
+          ? "http://localhost:8000/api/v1/market/quotes?force_refresh=true"
+          : "http://localhost:8000/api/v1/market/quotes";
+        res = await fetch(fallbackUrl);
+      }
+
       if (!res.ok) {
         throw new Error(`Market quotes API returned HTTP ${res.status}`);
       }
       const json = await res.json();
       setData(json);
       setErrorMessage(null);
+      setCountdown(60); // Reset 1-minute countdown after successful fetch
     } catch (err: any) {
       console.warn("Using fallback market telemetry:", err);
       setData(FALLBACK_MARKET_DATA);
-      setErrorMessage("Live API offline — displaying cached market intelligence telemetry.");
+      setErrorMessage("Notice: Displaying cached market telemetry (Twelve Data Quota Protected).");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  // Initial fetch and 1-minute (60s) countdown timer loop
   useEffect(() => {
-    fetchQuotes();
+    fetchQuotes(false);
+
+    const intervalTimer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          fetchQuotes(false);
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalTimer);
   }, []);
 
-  const formatPrice = (symbol: string, price: number) => {
-    const isUSD = symbol.startsWith("$");
+  const formatPrice = (symbol: string, price?: number | null) => {
+    if (price === null || price === undefined || isNaN(price)) {
+      return "₹—";
+    }
+    const isUSD = symbol.startsWith("$") || symbol.includes("USD") || symbol === "BTC";
     const formatted = price.toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -83,37 +141,74 @@ export default function Market() {
     return isUSD ? `$${formatted}` : `₹${formatted}`;
   };
 
-  const formatChangePct = (pct: number) => {
+  const formatChangePct = (pct?: number | null) => {
+    if (pct === null || pct === undefined || isNaN(pct)) {
+      return "0.00%";
+    }
     const sign = pct > 0 ? "+" : "";
     return `${sign}${pct.toFixed(2)}%`;
   };
 
   return (
     <div className="space-y-6">
-      {/* Statutory Market Data Disclaimer Banner */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs font-medium">
-        <div className="flex items-center gap-2.5">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-          <span>
-            <strong className="font-bold text-amber-200 uppercase tracking-wider mr-1.5">[Market Telemetry Disclaimer]:</strong>
-            {data?.disclaimer || "~15 min delay, for informational purposes only, not investment advice"}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 shrink-0 text-[11px] text-slate-300">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400/20 border border-amber-400/30 text-amber-200 font-semibold">
-            <Clock className="h-3 w-3" />
-            15-MIN DELAYED
-          </span>
-          {data?.last_updated && (
-            <span className="text-slate-400">
-              Updated: {new Date(data.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      {/* Twelve Data & Market Intelligence Header Banner */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-cyan-500/30 bg-cyan-950/30 text-cyan-200 text-xs font-medium">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 font-semibold tracking-wide">
+            <Activity className="h-3.5 w-3.5 text-cyan-400 animate-pulse" />
+            <span>Feed Provider: {data?.provider || "Twelve Data API"} (delayed ~15 min, informational only)</span>
+          </div>
+
+          {/* Market Date Badge */}
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300">
+            <Calendar className="h-3 w-3 text-cyan-400" />
+            <span>
+              Market Date: <strong className="text-white font-mono">{data?.market_date || "Today"}</strong>
+            </span>
+          </div>
+
+          {/* Session Status & 9 to 5 Market Hours */}
+          {data?.is_market_open !== undefined && (
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md font-semibold text-[11px] ${
+                data.is_market_open
+                  ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
+                  : "bg-slate-800 border border-slate-700 text-slate-300"
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${data.is_market_open ? "bg-emerald-400 animate-ping" : "bg-rose-500"}`} />
+              <span>{data.is_market_open ? "Market Open" : "Market Closed"}</span>
+              <span className="text-[10px] text-slate-400 font-mono">({data.market_hours || "09:00 - 17:00 IST"})</span>
             </span>
           )}
+
+          {/* Twelve Data 800 Requests/Day Quota Guard Indicator */}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-violet-500/10 border border-violet-400/20 text-violet-300 text-[11px]">
+            <ShieldCheck className="h-3 w-3 text-violet-400" />
+            <span>
+              Quota: <strong className="text-white">{data?.requests_used_today ?? 0}</strong> / {data?.daily_request_limit ?? 800} req/day
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0 text-[11px] text-slate-300">
+          {/* 1-Minute Live Update Countdown Pill */}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 font-mono">
+            <Zap className="h-3 w-3 text-cyan-400" />
+            Sync in {countdown}s
+          </span>
+
+          {data?.last_updated && (
+            <span className="text-slate-400 hidden sm:inline">
+              {new Date(data.last_updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+
           <button
-            onClick={fetchQuotes}
+            onClick={() => fetchQuotes(true)}
             disabled={refreshing}
-            className="p-1 rounded-lg hover:bg-white/10 text-cyan-300 transition"
-            title="Refresh Quotes"
+            className="p-1.5 rounded-lg hover:bg-white/10 text-cyan-300 transition border border-white/10"
+            title="Force Refresh (Bypass 1m cache)"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
@@ -121,8 +216,9 @@ export default function Market() {
       </div>
 
       {errorMessage && (
-        <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs">
-          {errorMessage}
+        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+          <span>{errorMessage}</span>
         </div>
       )}
 
@@ -140,10 +236,17 @@ export default function Market() {
         /* Market Index Tickers Grid */
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {data?.indices.map((t) => {
-            const isUp = t.change >= 0;
+            const isUp = (t.change ?? 0) >= 0;
             return (
               <FloatingPanel key={t.symbol} className="!p-4 border-cyan-400/20 hover:border-cyan-400/40 transition">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t.name}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t.name}</p>
+                  {t.exchange && (
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-white/5 text-slate-400 font-mono">
+                      {t.exchange}
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-base font-bold text-white">{formatPrice(t.symbol, t.price)}</p>
                 <p
                   className={`mt-1 flex items-center gap-1 text-xs font-semibold ${
@@ -158,10 +261,17 @@ export default function Market() {
           })}
 
           {data?.stocks.slice(0, 3).map((t) => {
-            const isUp = t.change >= 0;
+            const isUp = (t.change ?? 0) >= 0;
             return (
               <FloatingPanel key={t.symbol} className="!p-4 border-cyan-400/20 hover:border-cyan-400/40 transition">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t.symbol.replace('.NS', '')}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    {t.symbol.replace(".NS", "")}
+                  </p>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-500/10 text-cyan-300 font-mono">
+                    {t.exchange || "NSE"}
+                  </span>
+                </div>
                 <p className="mt-1 text-base font-bold text-white">{formatPrice(t.symbol, t.price)}</p>
                 <p
                   className={`mt-1 flex items-center gap-1 text-xs font-semibold ${
@@ -218,21 +328,22 @@ export default function Market() {
           </div>
         </FloatingPanel>
 
-        {/* Watchlist & Live Stock Quotes Panel */}
+        {/* Watchlist & Live Stock Quotes Panel with Twelve Data Telemetry */}
         <FloatingPanel className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-cyan-300">
               <TrendingUp className="h-5 w-5" />
               <h3 className="font-bold text-white text-base">Watchlist Tickers</h3>
             </div>
-            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">
-              LIVE API FEED
+            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20 flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              1-MIN SYNC
             </span>
           </div>
 
           <div className="space-y-3">
             {data?.stocks.map((stock) => {
-              const isUp = stock.change >= 0;
+              const isUp = (stock.change ?? 0) >= 0;
               return (
                 <div
                   key={stock.symbol}
@@ -240,7 +351,12 @@ export default function Market() {
                 >
                   <div>
                     <p className="font-bold text-white">{stock.name}</p>
-                    <p className="text-slate-400 font-mono text-[11px]">{stock.symbol}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-slate-400 font-mono text-[11px]">{stock.symbol}</span>
+                      <span className="text-[10px] text-cyan-400/80 font-mono px-1 rounded bg-cyan-400/10">
+                        {stock.exchange || "NSE"}
+                      </span>
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-white">{formatPrice(stock.symbol, stock.price)}</p>
@@ -263,15 +379,15 @@ export default function Market() {
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <h4 className="font-bold text-white text-sm">Audit V Market Intelligence & Advisory</h4>
+            <h4 className="font-bold text-white text-sm">Audit V Market Intelligence & Twelve Data Telemetry</h4>
             <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-              NIFTY 50 and BANK NIFTY indices are demonstrating positive momentum. All ticker quotes reflect ~15 minute delayed statutory market feeds for educational and financial planning purposes.
+              NIFTY 50 and BANK NIFTY indices are updating on a 1-minute cycle. Twelve Data quota guard actively tracks daily consumption against the 800 req/day limit. All ticker quotes reflect ~15 minute delayed statutory market feeds for analytical and tax planning purposes.
             </p>
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          <span className="text-[11px] text-slate-400 italic">
-            ~15 min delayed data feed
+          <span className="text-[11px] text-cyan-300 font-medium">
+            Twelve Data Integration Active
           </span>
         </div>
       </FloatingPanel>

@@ -56,11 +56,20 @@ def configure_logging() -> logging.Logger:
     file_handler.setFormatter(json_formatter)
     logger.addHandler(file_handler)
 
-    # Console stdout handler
+    import io
+
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+    # Console stdout handler with utf-8 encoding
     stdout_formatter = logging.Formatter(
         "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     )
-    stream_handler = logging.StreamHandler(sys.stdout)
+    safe_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace") if hasattr(sys.stdout, "buffer") else sys.stdout
+    stream_handler = logging.StreamHandler(safe_stdout)
     stream_handler.setFormatter(stdout_formatter)
     logger.addHandler(stream_handler)
 

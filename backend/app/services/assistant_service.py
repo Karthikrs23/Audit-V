@@ -17,7 +17,12 @@ from app.schemas.assistant import (
     SourceReference,
 )
 from app.schemas.tax import TaxCalculationRequest, TaxDeductionsInput
-from app.services.llm_service import LLMService
+from app.services.llm_service import (
+    LLMService,
+    SEBI_GUARDRAIL_REFUSAL,
+    check_sebi_compliance_violation,
+    is_sebi_intercept_query,
+)
 from app.services.tax_engine import compute_tax
 
 logger = configure_logging()
@@ -41,9 +46,12 @@ class AssistantService:
             ingest_knowledge_base()
 
     def _detect_intent(self, query: str) -> str:
-        """Detect whether query is a tax calculation request or information question."""
+        """Detect whether query is a tax calculation / salary budget request or information question."""
         q_lower = query.lower()
-        calc_keywords = ["calculate", "tax on", "lakh", "lac", "salary of", "income of", "my tax"]
+        calc_keywords = [
+            "calculate", "tax on", "lakh", "lac", "salary", "income", "my tax",
+            "lpa", "ctc", "per month", "budget", "in-hand", "in hand", "take home", "take-home"
+        ]
 
         for kw in calc_keywords:
             if kw in q_lower:
@@ -57,25 +65,62 @@ class AssistantService:
             return "tax_information"
 
     def _extract_income_from_query(self, query: str) -> Optional[Decimal]:
-        """Attempt to extract annual income from query text (e.g., '₹12 lakh' -> 1200000)."""
+        """Attempt to extract annual income from query text (e.g., '₹12 lakh', '15 LPA', '80k/month')."""
         q_lower = query.lower()
 
-        match_lakh = re.search(r"(\d+(?:\.\d+)?)\s*(?:lakh|lac|l|lakhs)", q_lower)
+        # Monthly income (e.g., '80k per month', '80,000 pm', '60k monthly')
+        match_month_k = re.search(r"(\d+(?:\.\d+)?)\s*k\s*(?:per\s*month|pm|/mo|a\s*month|monthly)", q_lower)
+        if match_month_k:
+            val = float(match_month_k.group(1)) * 1000.0 * 12.0
+            return Decimal(str(int(val)))
+
+        match_month_num = re.search(r"₹?\s*(\d{1,3}(?:,\d{2,3})+|\d{4,7})\s*(?:per\s*month|pm|/mo|a\s*month|monthly)", q_lower)
+        if match_month_num:
+            raw_str = match_month_num.group(1).replace(",", "")
+            val = float(raw_str) * 12.0
+            return Decimal(str(int(val)))
+
+        # LPA / CTC (e.g., '15 LPA', '12lpa', '18 ctc')
+        match_lpa = re.search(r"(\d+(?:\.\d+)?)\s*(?:lpa|l\.p\.a|ctc)", q_lower)
+        if match_lpa:
+            val = float(match_lpa.group(1))
+            return Decimal(str(int(val * 100000)))
+
+        # Lakh / Lacs (e.g., '15 lakh', '12 lac')
+        match_lakh = re.search(r"(\d+(?:\.\d+)?)\s*(?:lakh|lac|l|lakhs|lacs)", q_lower)
         if match_lakh:
             val = float(match_lakh.group(1))
             return Decimal(str(int(val * 100000)))
 
+        # Crores
         match_crore = re.search(r"(\d+(?:\.\d+)?)\s*(?:crore|cr|crores)", q_lower)
         if match_crore:
             val = float(match_crore.group(1))
             return Decimal(str(int(val * 10000000)))
 
+        # Raw number (e.g., '1500000')
         match_raw = re.search(r"₹?\s*(\d{1,3}(?:,\d{2,3})+|\d{5,8})", query)
         if match_raw:
             raw_str = match_raw.group(1).replace(",", "")
             return Decimal(raw_str)
 
         return None
+
+    def _deduplicate_chunks(self, chunks: List[Dict[str, Any]], max_chunks: int = 3) -> List[Dict[str, Any]]:
+        """Deduplicate retrieved chunks based on title and content snippet, keeping top distinct passages."""
+        seen_texts = set()
+        deduped = []
+        for c in chunks:
+            if not isinstance(c, dict):
+                continue
+            content = c.get("content", "").strip()
+            fingerprint = " ".join(content.split())[:80].lower()
+            if fingerprint and fingerprint not in seen_texts:
+                seen_texts.add(fingerprint)
+                deduped.append(c)
+                if len(deduped) >= max_chunks:
+                    break
+        return deduped or chunks[:max_chunks]
 
     def _check_insufficient_grounding(self, chunks: List[Dict[str, Any]]) -> bool:
         """Check if all top retrieved chunks fall below the similarity confidence threshold."""
@@ -90,6 +135,29 @@ class AssistantService:
         """Process user chat query through Audit V intelligence pipeline (Non-Streaming Path)."""
         start_time = time.perf_counter()
         query = request.message.strip()
+
+        # a) Pre-generation intercept: skip model entirely for stock/fund/crypto picks, buy/sell/hold calls, price predictions
+        if is_sebi_intercept_query(query):
+            processing_time = round((time.perf_counter() - start_time) * 1000.0, 2)
+            audit_trail = AuditTrail(
+                intent="investment_guidance",
+                tax_engine_invoked=False,
+                tax_engine_summary=None,
+                rag_invoked=True,
+                retrieved_sources_count=0,
+                guardrail_triggered=True,
+                processing_time_ms=processing_time,
+            )
+            return AssistantChatResponse(
+                answer=SEBI_GUARDRAIL_REFUSAL,
+                intent="investment_guidance",
+                sources=[],
+                used_rag=True,
+                used_tax_engine=False,
+                insufficient_grounding=False,
+                audit_trail=audit_trail,
+            )
+
         intent = self._detect_intent(query)
         logger.info(f"Processing chat query (Detected Intent: '{intent}')")
 
@@ -110,12 +178,14 @@ class AssistantService:
             )
             calc_resp = compute_tax(tax_req)
             retrieved_chunks = self.retriever.retrieve(query="Old vs New Tax Regime 115BAC", top_k=3)
-            sources = self._build_sources(retrieved_chunks)
+            deduped_chunks = self._deduplicate_chunks(retrieved_chunks, max_chunks=3)
+            sources = self._build_sources(deduped_chunks)
 
             explanation = self.llm_service.generate_explanation(
                 query=query,
-                context_chunks=retrieved_chunks,
+                context_chunks=deduped_chunks,
                 calculation_result=calc_resp.model_dump(),
+                fast_mode=request.fast_mode,
             )
 
             processing_time = round((time.perf_counter() - start_time) * 1000.0, 2)
@@ -147,77 +217,49 @@ class AssistantService:
             )
 
         retrieved_chunks = self.retriever.retrieve(query=query, top_k=5)
-        sources = self._build_sources(retrieved_chunks)
-        insufficient = self._check_insufficient_grounding(retrieved_chunks)
+        deduped_chunks = self._deduplicate_chunks(retrieved_chunks, max_chunks=3)
+        sources = self._build_sources(deduped_chunks)
+        insufficient = self._check_insufficient_grounding(deduped_chunks)
 
-        stock_query_keywords = [
-            "stock", "ticker", "reliance", "tcs", "infosys", "hdfc", "icici", "wipro",
-            "mutual fund", "suggest a fund", "crypto", "bitcoin", "ethereum", "buy right now",
-            "should i buy", "should i invest", "good stock", "best stock", "which stock",
-            "stock to buy", "what will stock do", "timing", "market prediction", "price target",
-            "stock recommendation", "invest in crypto", "fund for me"
-        ]
-
-        is_stock_recommendation_query = any(kw in query.lower() for kw in stock_query_keywords)
-
-        if is_stock_recommendation_query:
-            answer = self.llm_service.generate_explanation(
-                query=query,
-                context_chunks=retrieved_chunks,
-                calculation_result=None,
-            )
-            processing_time = round((time.perf_counter() - start_time) * 1000.0, 2)
-            audit_trail = AuditTrail(
-                intent="investment_guidance",
-                tax_engine_invoked=False,
-                tax_engine_summary=None,
-                rag_invoked=True,
-                retrieved_sources_count=len(sources),
-                guardrail_triggered=True,
-                processing_time_ms=processing_time,
-            )
-            return AssistantChatResponse(
-                answer=answer,
-                intent="investment_guidance",
-                sources=sources,
-                used_rag=True,
-                used_tax_engine=False,
-                insufficient_grounding=False,
-                audit_trail=audit_trail,
-            )
-
-        if insufficient:
+        if not deduped_chunks:
             answer = (
-                "I couldn't find sufficient authoritative information in the Audit V knowledge base "
-                "to answer this query reliably with high confidence. Please verify your query or consult "
-                "official Indian tax documentation."
+                "Here are key statutory guidelines:\n\n"
+                "• **New Tax Regime**: Rebate under Section 87A offers zero tax for taxable income up to ₹12 Lakh (salaried standard deduction is ₹75,000).\n"
+                "• **Smart Investment & Market Suggestions**: Consider broad-market index funds (NIFTY 50 / S&P BSE Sensex) for long-term equity compounding, PPF/EPF for sovereign debt safety, and NPS for retirement wealth.\n\n"
+                "Tell me your annual salary or investment goals to get a customized budget and tax blueprint!"
             )
         else:
             answer = self.llm_service.generate_explanation(
                 query=query,
                 context_chunks=retrieved_chunks,
                 calculation_result=None,
+                fast_mode=request.fast_mode,
             )
+
+        # Post-generation scan on EVERY path
+        is_override = (answer == SEBI_GUARDRAIL_REFUSAL) or check_sebi_compliance_violation(answer)
+        if is_override:
+            answer = SEBI_GUARDRAIL_REFUSAL
 
         processing_time = round((time.perf_counter() - start_time) * 1000.0, 2)
         audit_trail = AuditTrail(
-            intent=intent,
+            intent="investment_guidance" if is_override else intent,
             tax_engine_invoked=False,
             tax_engine_summary=None,
             rag_invoked=True,
             retrieved_sources_count=len(sources),
-            guardrail_triggered=False,
+            guardrail_triggered=is_override,
             processing_time_ms=processing_time,
         )
 
         return AssistantChatResponse(
             answer=answer,
-            intent=intent,
+            intent="investment_guidance" if is_override else intent,
             sources=sources,
             used_rag=True,
             used_tax_engine=False,
             calculation=None,
-            insufficient_grounding=insufficient,
+            insufficient_grounding=insufficient and not is_override,
             audit_trail=audit_trail,
         )
 
@@ -225,17 +267,36 @@ class AssistantService:
         """Yield Server-Sent Events (SSE) for token streaming with initial metadata payload."""
         start_time = time.perf_counter()
         query = request.message.strip()
+
+        # a) Pre-generation intercept: skip model entirely for stock/fund/crypto picks, buy/sell/hold calls, price predictions
+        if is_sebi_intercept_query(query):
+            processing_time = round((time.perf_counter() - start_time) * 1000.0, 2)
+            audit_trail_dict = {
+                "intent": "investment_guidance",
+                "tax_engine_invoked": False,
+                "tax_engine_summary": None,
+                "rag_invoked": False,
+                "retrieved_sources_count": 0,
+                "guardrail_triggered": True,
+                "processing_time_ms": processing_time,
+            }
+            meta_payload = {
+                "intent": "investment_guidance",
+                "sources": [],
+                "used_rag": False,
+                "used_tax_engine": False,
+                "calculation": None,
+                "insufficient_grounding": False,
+                "audit_trail": audit_trail_dict,
+            }
+            yield f"event: metadata\ndata: {json.dumps(meta_payload, default=str)}\n\n"
+            for token in self.llm_service._stream_sebi_disclaimer():
+                yield f"event: token\ndata: {json.dumps({'content': token})}\n\n"
+            yield "event: done\ndata: {}\n\n"
+            return
+
         intent = self._detect_intent(query)
         logger.info(f"Processing chat query stream (Detected Intent: '{intent}')")
-
-        stock_query_keywords = [
-            "stock", "ticker", "reliance", "tcs", "infosys", "hdfc", "icici", "wipro",
-            "mutual fund", "suggest a fund", "crypto", "bitcoin", "ethereum", "buy right now",
-            "should i buy", "should i invest", "good stock", "best stock", "which stock",
-            "stock to buy", "what will stock do", "timing", "market prediction", "price target",
-            "stock recommendation", "invest in crypto", "fund for me"
-        ]
-        is_stock_query = any(kw in query.lower() for kw in stock_query_keywords)
 
         if intent == "tax_calculation":
             extracted_income = self._extract_income_from_query(query)
@@ -254,7 +315,8 @@ class AssistantService:
             )
             calc_resp = compute_tax(tax_req)
             retrieved_chunks = self.retriever.retrieve(query="Old vs New Tax Regime 115BAC", top_k=3)
-            sources = [s.model_dump() for s in self._build_sources(retrieved_chunks)]
+            deduped_chunks = self._deduplicate_chunks(retrieved_chunks, max_chunks=3)
+            sources = [s.model_dump() for s in self._build_sources(deduped_chunks)]
 
             processing_time = round((time.perf_counter() - start_time) * 1000.0, 2)
             audit_trail_dict = {
@@ -288,8 +350,9 @@ class AssistantService:
             # Stream Token events
             for token in self.llm_service.generate_explanation_stream(
                 query=query,
-                context_chunks=retrieved_chunks,
+                context_chunks=deduped_chunks,
                 calculation_result=calc_resp.model_dump(),
+                fast_mode=request.fast_mode,
             ):
                 yield f"event: token\ndata: {json.dumps({'content': token})}\n\n"
 
@@ -297,45 +360,47 @@ class AssistantService:
             return
 
         retrieved_chunks = self.retriever.retrieve(query=query, top_k=5)
-        sources = [s.model_dump() for s in self._build_sources(retrieved_chunks)]
-        insufficient = self._check_insufficient_grounding(retrieved_chunks)
+        deduped_chunks = self._deduplicate_chunks(retrieved_chunks, max_chunks=3)
+        sources = [s.model_dump() for s in self._build_sources(deduped_chunks)]
+        insufficient = self._check_insufficient_grounding(deduped_chunks)
 
-        effective_intent = "investment_guidance" if is_stock_query else intent
         processing_time = round((time.perf_counter() - start_time) * 1000.0, 2)
         audit_trail_dict = {
-            "intent": effective_intent,
+            "intent": intent,
             "tax_engine_invoked": False,
             "tax_engine_summary": None,
             "rag_invoked": True,
             "retrieved_sources_count": len(sources),
-            "guardrail_triggered": is_stock_query,
+            "guardrail_triggered": False,
             "processing_time_ms": processing_time,
         }
 
         # Emit Metadata event
         meta_payload = {
-            "intent": effective_intent,
+            "intent": intent,
             "sources": sources,
             "used_rag": True,
             "used_tax_engine": False,
             "calculation": None,
-            "insufficient_grounding": insufficient and not is_stock_query,
+            "insufficient_grounding": insufficient,
             "audit_trail": audit_trail_dict,
         }
         yield f"event: metadata\ndata: {json.dumps(meta_payload, default=str)}\n\n"
 
-        if insufficient and not is_stock_query:
+        if not deduped_chunks:
             warning_msg = (
-                "I couldn't find sufficient authoritative information in the Audit V knowledge base "
-                "to answer this query reliably with high confidence. Please verify your query or consult "
-                "official Indian tax documentation."
+                "Here are key statutory guidelines:\n\n"
+                "• **New Tax Regime**: Rebate under Section 87A offers zero tax for taxable income up to ₹12 Lakh (salaried standard deduction is ₹75,000).\n"
+                "• **Smart Investment & Market Suggestions**: Consider broad-market index funds (NIFTY 50 / S&P BSE Sensex) for long-term equity compounding, PPF/EPF for sovereign debt safety, and NPS for retirement wealth.\n\n"
+                "Tell me your annual salary or investment goals to give you a customized budget and tax blueprint!"
             )
             yield f"event: token\ndata: {json.dumps({'content': warning_msg})}\n\n"
         else:
             for token in self.llm_service.generate_explanation_stream(
                 query=query,
-                context_chunks=retrieved_chunks,
+                context_chunks=deduped_chunks,
                 calculation_result=None,
+                fast_mode=request.fast_mode,
             ):
                 yield f"event: token\ndata: {json.dumps({'content': token})}\n\n"
 

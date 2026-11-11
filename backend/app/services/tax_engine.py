@@ -179,6 +179,8 @@ def calculate_new_regime(
     total_tax = _quantize_currency(tax_after_rebate + surcharge + cess)
     effective_rate = float(round((total_tax / gross_income * 100), 2)) if gross_income > 0 else 0.0
     monthly_tax = _quantize_currency(total_tax / Decimal("12"))
+    net_annual = _quantize_currency(gross_income - total_tax)
+    net_monthly = _quantize_currency(net_annual / Decimal("12"))
 
     return TaxCalculationResult(
         financial_year=TaxRulesConfig.FINANCIAL_YEAR,
@@ -195,6 +197,8 @@ def calculate_new_regime(
         total_tax=total_tax,
         effective_tax_rate=effective_rate,
         monthly_tax_estimate=monthly_tax,
+        net_annual_take_home=net_annual,
+        net_monthly_take_home=net_monthly,
         slab_breakdown=breakdown,
     )
 
@@ -253,6 +257,8 @@ def calculate_old_regime(
     total_tax = _quantize_currency(tax_after_rebate + surcharge + cess)
     effective_rate = float(round((total_tax / gross_income * 100), 2)) if gross_income > 0 else 0.0
     monthly_tax = _quantize_currency(total_tax / Decimal("12"))
+    net_annual = _quantize_currency(gross_income - total_tax)
+    net_monthly = _quantize_currency(net_annual / Decimal("12"))
 
     return TaxCalculationResult(
         financial_year=TaxRulesConfig.FINANCIAL_YEAR,
@@ -269,6 +275,8 @@ def calculate_old_regime(
         total_tax=total_tax,
         effective_tax_rate=effective_rate,
         monthly_tax_estimate=monthly_tax,
+        net_annual_take_home=net_annual,
+        net_monthly_take_home=net_monthly,
         slab_breakdown=breakdown,
     )
 

@@ -6,6 +6,7 @@ from app.api.v1.endpoints.assistant import router as assistant_router
 from app.api.v1.endpoints.risk import router as risk_router
 from app.api.v1.endpoints.market import router as market_router
 from app.api.v1.endpoints.investment import router as investment_router
+from app.api.v1.endpoints.users import router as users_router
 
 router = APIRouter(prefix="/api/v1")
 
@@ -15,6 +16,7 @@ router.include_router(assistant_router)
 router.include_router(risk_router)
 router.include_router(market_router)
 router.include_router(investment_router)
+router.include_router(users_router)
 
 
 @router.get("/health", tags=["system"])
